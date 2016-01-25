@@ -21,11 +21,6 @@
     "xpath",
     "xml"
   ],
-  "licenses": [
-    {
-      "type": "MIT License",
-      "url": "http://www.opensource.org/licenses/mit-license.php"
-    }
-  ]
+  "license": "MIT"
 }
 
