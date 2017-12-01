@@ -128,3 +128,6 @@ console.log(author)
     J. K. Rowling
 
 [MDN]: https://developer.mozilla.org/en/docs/Web/API/Document/evaluate
+
+## License
+MIT

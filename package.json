@@ -6,7 +6,7 @@
     "node": ">=0.6.0"
   },
   "author": {
-    "name": "Cameron McCormac"
+    "name": "Cameron McCormack"
   },
   "contributors": [
     {
@@ -34,5 +34,5 @@
     "xpath",
     "xml"
   ],
-  "license": "CC-BY-SA-2.0"
+  "license": "MIT"
 }
