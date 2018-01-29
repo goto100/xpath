@@ -97,6 +97,31 @@
 
 // non-node wrapper
 var xpath = (typeof exports === 'undefined') ? {} : exports;
+var math = {};
+try {
+	math = require('mathjs');
+} catch (err) {
+  // If require does not work, just use normal JS math functions.
+	math.number = function (a) {
+		return a;
+	};
+  math.bignumber = math.number;
+	math.add = function (a, b) {
+		return a + b;
+	};
+	math.subtract = function (a, b) {
+		return a - b;
+	};
+	math.multiply = function (a, b) {
+		return a * b;
+	};
+	math.divide = function (a, b) {
+		return a / b;
+	};
+	math.mod = function (a, b) {
+    return a % b;
+  };
+}
 
 (function(exports) {
 "use strict";
@@ -133,9 +158,9 @@ var reduce = curry(function (f, seed, xs) {
 	return acc;
 });
 
-var map = curry(function (f, xs) { 
+var map = curry(function (f, xs) {
 	var mapped = new Array(xs.length);
-	
+
 	forEach(function (x, i) { mapped[i] = f(x); }, xs);
 
 	return mapped;
@@ -143,9 +168,9 @@ var map = curry(function (f, xs) {
 
 var filter = curry(function (f, xs) {
 	var filtered = [];
-	
+
 	forEach(function (x, i) { if(f(x, i)) { filtered.push(x); } }, xs);
-	
+
 	return filtered;
 });
 
@@ -153,7 +178,7 @@ function compose() {
     if (arguments.length === 0) { throw new Error('compose requires at least one argument'); }
 
     var funcs = Array.prototype.slice.call(arguments).reverse();
-	
+
     var f0 = funcs[0];
     var fRem = funcs.slice(1);
 
@@ -170,7 +195,7 @@ var includes = curry(function (values, value) {
 			return true;
 		}
 	}
-	
+
 	return false;
 });
 
@@ -1311,7 +1336,7 @@ XPath.prototype.evaluate = function(c) {
 		setIfUnset(c, 'caseInsensitive', true);
 		setIfUnset(c, 'allowAnyNamespaceForNoPrefix', true);
 	}
-	
+
     setIfUnset(c, 'caseInsensitive', false);
 
 	return this.expression.evaluate(c);
@@ -1774,7 +1799,7 @@ function findRoot(node) {
 PathExpr.applyPredicates = function (predicates, c, nodes) {
 	return reduce(function (inNodes, pred) {
 		var ctx = c.extend({ contextSize: inNodes.length });
-		
+
 		return filter(function (node, i) {
 			return PathExpr.predicateMatches(pred, ctx.extend({ contextNode: node, contextPosition: i + 1 }));
 		}, inNodes);
@@ -1783,21 +1808,21 @@ PathExpr.applyPredicates = function (predicates, c, nodes) {
 
 PathExpr.getRoot = function (xpc, nodes) {
 	var firstNode = nodes[0];
-	
+
     if (firstNode.nodeType === 9 /*Node.DOCUMENT_NODE*/) {
 		return firstNode;
 	}
-	
+
     if (xpc.virtualRoot) {
     	return xpc.virtualRoot;
     }
-		
+
 	var ownerDoc = firstNode.ownerDocument;
-	
+
 	if (ownerDoc) {
 		return ownerDoc;
 	}
-			
+
     // IE 5.5 doesn't have ownerDocument?
     var n = firstNode;
     while (n.parentNode != null) {
@@ -1810,7 +1835,7 @@ PathExpr.applyStep = function (step, xpc, node) {
 	var self = this;
 	var newNodes = [];
     xpc.contextNode = node;
-    
+
     switch (step.axis) {
     	case Step.ANCESTOR:
     		// look at all the ancestor nodes
@@ -1833,7 +1858,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			m = m.parentNode;
     		}
     		break;
-    
+
     	case Step.ANCESTORORSELF:
     		// look at all the ancestor nodes and the current node
     		for (var m = xpc.contextNode; m != null; m = m.nodeType == 2 /*Node.ATTRIBUTE_NODE*/ ? PathExpr.getOwnerElement(m) : m.parentNode) {
@@ -1845,7 +1870,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.ATTRIBUTE:
     		// look at the attributes
     		var nnm = xpc.contextNode.attributes;
@@ -1858,7 +1883,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.CHILD:
     		// look at all child elements
     		for (var m = xpc.contextNode.firstChild; m != null; m = m.nextSibling) {
@@ -1867,7 +1892,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.DESCENDANT:
     		// look at all descendant nodes
     		var st = [ xpc.contextNode.firstChild ];
@@ -1885,7 +1910,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.DESCENDANTORSELF:
     		// look at self
     		if (step.nodeTest.matches(xpc.contextNode, xpc)) {
@@ -1907,7 +1932,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.FOLLOWING:
     		if (xpc.contextNode === xpc.virtualRoot) {
     			break;
@@ -1935,7 +1960,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		} while (st.length > 0);
     		break;
-    
+
     	case Step.FOLLOWINGSIBLING:
     		if (xpc.contextNode === xpc.virtualRoot) {
     			break;
@@ -1946,7 +1971,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.NAMESPACE:
     		var n = {};
     		if (xpc.contextNode.nodeType == 1 /*Node.ELEMENT_NODE*/) {
@@ -1976,7 +2001,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.PARENT:
     		m = null;
     		if (xpc.contextNode !== xpc.virtualRoot) {
@@ -1990,7 +2015,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			newNodes.push(m);
     		}
     		break;
-    
+
     	case Step.PRECEDING:
     		var st;
     		if (xpc.virtualRoot != null) {
@@ -2016,7 +2041,7 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.PRECEDINGSIBLING:
     		if (xpc.contextNode === xpc.virtualRoot) {
     			break;
@@ -2027,16 +2052,16 @@ PathExpr.applyStep = function (step, xpc, node) {
     			}
     		}
     		break;
-    
+
     	case Step.SELF:
     		if (step.nodeTest.matches(xpc.contextNode, xpc)) {
     			newNodes.push(xpc.contextNode);
     		}
     		break;
-    
+
     	default:
     }
-	
+
 	return newNodes;
 };
 
@@ -2052,7 +2077,7 @@ PathExpr.prototype.applyFilter = function(c, xpc) {
 	if (!this.filter) {
 		return { nodes: [ c.contextNode ] };
 	}
-	
+
 	var ns = this.filter.evaluate(c);
 
 	if (!Utilities.instance_of(ns, XNodeSet)) {
@@ -2062,8 +2087,8 @@ PathExpr.prototype.applyFilter = function(c, xpc) {
 
 		return { nonNodes: ns };
 	}
-	
-	return { 
+
+	return {
 	    nodes: PathExpr.applyPredicates(this.filterPredicates || [], xpc, ns.toUnsortedArray())
 	};
 };
@@ -2072,21 +2097,21 @@ PathExpr.applyLocationPath = function (locationPath, xpc, nodes) {
 	if (!locationPath) {
 		return nodes;
 	}
-	
+
 	var startNodes = locationPath.absolute ? [ PathExpr.getRoot(xpc, nodes) ] : nodes;
-		
+
     return PathExpr.applySteps(locationPath.steps, xpc, startNodes);
 };
 
 PathExpr.prototype.evaluate = function(c) {
 	var xpc = assign(new XPathContext(), c);
-	
+
     var filterResult = this.applyFilter(c, xpc);
-	
+
 	if ('nonNodes' in filterResult) {
 		return filterResult.nonNodes;
-	}	
-	
+	}
+
 	var ns = new XNodeSet();
 	ns.addArray(PathExpr.applyLocationPath(this.locationPath, xpc, filterResult.nodes));
 	return ns;
@@ -2094,7 +2119,7 @@ PathExpr.prototype.evaluate = function(c) {
 
 PathExpr.predicateMatches = function(pred, c) {
 	var res = pred.evaluate(c);
-	
+
 	return Utilities.instance_of(res, XNumber)
 		? c.contextPosition == res.numberValue()
 		: res.booleanValue();
@@ -2111,11 +2136,11 @@ PathExpr.prototype.toString = function() {
 			return wrap("'", "'", filterStr);
 		}
 		if (this.filterPredicates != undefined && this.filterPredicates.length) {
-			return wrap('(', ')', filterStr) + 
+			return wrap('(', ')', filterStr) +
 			    PathExpr.predicatesString(this.filterPredicates);
 		}
 		if (this.locationPath != undefined) {
-			return filterStr + 
+			return filterStr +
 			    (this.locationPath.absolute ? '' : '/') +
 				toString(this.locationPath);
 		}
@@ -2235,7 +2260,7 @@ Step.STEPNAMES = reduce(function (acc, x) { return acc[x[0]] = x[1], acc; }, {},
 	[Step.PRECEDINGSIBLING, 'preceding-sibling'],
 	[Step.SELF, 'self']
   ]);
-  
+
 // NodeTest //////////////////////////////////////////////////////////////////
 
 NodeTest.prototype = new Object();
@@ -2275,14 +2300,14 @@ NodeTest.isNodeType = function (types){
 
 NodeTest.makeNodeTestType = function (type, members, ctor) {
 	var newType = ctor || function () {};
-	
+
 	newType.prototype = new NodeTest(members.type);
 	newType.prototype.constructor = type;
-	
+
 	for (var key in members) {
 		newType.prototype[key] = members[key];
 	}
-	
+
 	return newType;
 };
 // create invariant node test for certain node types
@@ -2300,11 +2325,11 @@ NodeTest.hasPrefix = function (node) {
 NodeTest.isElementOrAttribute = NodeTest.isNodeType([1, 2]);
 NodeTest.nameSpaceMatches = function (prefix, xpc, n) {
 	var nNamespace = (n.namespaceURI || '');
-	
-	if (!prefix) { 
-	    return !nNamespace || (xpc.allowAnyNamespaceForNoPrefix && !NodeTest.hasPrefix(n)); 
+
+	if (!prefix) {
+	    return !nNamespace || (xpc.allowAnyNamespaceForNoPrefix && !NodeTest.hasPrefix(n));
 	}
-	
+
     var ns = xpc.namespaceResolver.getNamespace(prefix, xpc.expressionContextNode);
 
 	if (ns == null) {
@@ -2315,7 +2340,7 @@ NodeTest.nameSpaceMatches = function (prefix, xpc, n) {
 };
 NodeTest.localNameMatches = function (localName, xpc, n) {
 	var nLocalName = (n.localName || n.nodeName);
-	
+
 	return xpc.caseInsensitive
 	    ? localName.toLowerCase() === nLocalName.toLowerCase()
 		: localName === nLocalName;
@@ -2323,7 +2348,7 @@ NodeTest.localNameMatches = function (localName, xpc, n) {
 
 NodeTest.NameTestPrefixAny = NodeTest.makeNodeTestType(NodeTest.NAMETESTPREFIXANY, {
 	matches: function (n, xpc){
-        return NodeTest.isElementOrAttribute(n) && 
+        return NodeTest.isElementOrAttribute(n) &&
 		    NodeTest.nameSpaceMatches(this.prefix, xpc, n);
 	},
 	toString: function () {
@@ -2340,9 +2365,9 @@ NodeTest.NameTestQName = NodeTest.makeNodeTestType(NodeTest.NAMETESTQNAME, {
 	toString: function () {
         return this.name;
 	}
-}, function (name) { 
+}, function (name) {
     var nameParts = name.split(':');
-	
+
 	this.name = name;
 	this.prefix = nameParts.length > 1 ? nameParts[0] : null;
 	this.localName = nameParts[nameParts.length > 1 ? 1 : 0];
@@ -2589,11 +2614,11 @@ function padSmallNumber(numberStr) {
 	var parts = numberStr.split('e-');
 	var base = parts[0].replace('.', '');
 	var exponent = Number(parts[1]);
-	
+
 	for (var i = 0; i < exponent - 1; i += 1) {
 		base = '0' + base;
 	}
-	
+
 	return '0.' + base;
 }
 
@@ -2602,11 +2627,11 @@ function padLargeNumber(numberStr) {
 	var base = parts[0].replace('.', '');
 	var exponent = Number(parts[1]);
 	var zerosToAppend = exponent + 1 - base.length;
-	
+
 	for (var i = 0; i < zerosToAppend; i += 1){
 		base += '0';
 	}
-	
+
 	return base;
 }
 
@@ -2616,11 +2641,11 @@ XNumber.prototype.toString = function() {
 	if (strValue.indexOf('e-') !== -1) {
 		return padSmallNumber(strValue);
 	}
-    
+
 	if (strValue.indexOf('e') !== -1) {
 		return padLargeNumber(strValue);
 	}
-	
+
 	return strValue;
 };
 
@@ -2629,8 +2654,8 @@ XNumber.prototype.evaluate = function(c) {
 };
 
 XNumber.prototype.string = function() {
-	
-	
+
+
 	return new XString(this.toString());
 };
 
@@ -2729,23 +2754,28 @@ XNumber.prototype.greaterthanorequal = function(r) {
 };
 
 XNumber.prototype.plus = function(r) {
-	return new XNumber(this.num + r.num);
+  const result = math.add(math.bignumber(this.num), math.bignumber(r.num));
+  return new XNumber(math.number(result));
 };
 
 XNumber.prototype.minus = function(r) {
-	return new XNumber(this.num - r.num);
+  const result = math.subtract(math.bignumber(this.num), math.bignumber(r.num));
+  return new XNumber(math.number(result));
 };
 
 XNumber.prototype.multiply = function(r) {
-	return new XNumber(this.num * r.num);
+  const result = math.multiply(math.bignumber(this.num), math.bignumber(r.num));
+  return new XNumber(math.number(result));
 };
 
 XNumber.prototype.div = function(r) {
-	return new XNumber(this.num / r.num);
+  const result = math.divide(math.bignumber(this.num), math.bignumber(r.num));
+  return new XNumber(math.number(result));
 };
 
 XNumber.prototype.mod = function(r) {
-	return new XNumber(this.num % r.num);
+  const result = math.mod(math.bignumber(this.num), math.bignumber(r.num));
+  return new XNumber(math.number(result));
 };
 
 // XBoolean //////////////////////////////////////////////////////////////////
@@ -2993,17 +3023,17 @@ function nodeOrder(n1, n2) {
 		n1Par = n1.parentNode || n1.ownerElement;
 	    n2Par = n2.parentNode || n2.ownerElement;
 	}
-    
+
     var n1isAttr = Utilities.isAttribute(n1);
     var n2isAttr = Utilities.isAttribute(n2);
-    
+
     if (n1isAttr && !n2isAttr) {
         return -1;
     }
     if (!n1isAttr && n2isAttr) {
         return 1;
     }
-    
+
     if(n1Par) {
 	    var cn = n1isAttr ? n1Par.attributes : n1Par.childNodes,
 	        len = cn.length;
@@ -3016,8 +3046,8 @@ function nodeOrder(n1, n2) {
                 return 1;
             }
         }
-    }        
-    
+    }
+
     throw new Error('Unexpected: could not determine node order');
 }
 
@@ -3114,8 +3144,8 @@ XNodeSet.prototype.nodeset = function() {
 };
 
 XNodeSet.prototype.stringForNode = function(n) {
-	if (n.nodeType == 9   /*Node.DOCUMENT_NODE*/ || 
-        n.nodeType == 1   /*Node.ELEMENT_NODE */ || 
+	if (n.nodeType == 9   /*Node.DOCUMENT_NODE*/ ||
+        n.nodeType == 1   /*Node.ELEMENT_NODE */ ||
         n.nodeType === 11 /*Node.DOCUMENT_FRAGMENT*/) {
 		return this.stringForContainerNode(n);
 	}
@@ -3176,7 +3206,7 @@ XNodeSet.prototype.add = function(n) {
 
 XNodeSet.prototype.addArray = function(ns) {
 	var self = this;
-	
+
 	forEach(function (x) { self.add(x); }, ns);
 };
 
@@ -3237,7 +3267,7 @@ XNodeSet.prototype.compareWithBoolean = function(r, o) {
 XNodeSet.prototype.compareWithNodeSet = function(r, o) {
 	var arr = this.toUnsortedArray();
 	var oInvert = function (lop, rop) { return o(rop, lop); };
-	
+
 	for (var i = 0; i < arr.length; i++) {
 		var l = new XString(this.stringForNode(arr[i]));
 
@@ -3246,7 +3276,7 @@ XNodeSet.prototype.compareWithNodeSet = function(r, o) {
 			return res;
 		}
 	}
-	
+
 	return new XBoolean(false);
 };
 
@@ -3489,7 +3519,7 @@ Functions.id = function() {
 
 Functions.localName = function(c, eNode) {
 	var n;
-	
+
 	if (arguments.length == 1) {
 		n = c.contextNode;
 	} else if (arguments.length == 2) {
@@ -3497,7 +3527,7 @@ Functions.localName = function(c, eNode) {
 	} else {
 		throw new Error("Function local-name expects (node-set?)");
 	}
-	
+
 	if (n == null) {
 		return new XString("");
 	}
@@ -3684,7 +3714,7 @@ Functions.translate = function(c, eValue, eFrom, eTo) {
 	var value = eValue.evaluate(c).stringValue();
 	var from = eFrom.evaluate(c).stringValue();
 	var to = eTo.evaluate(c).stringValue();
-	
+
 	var cMap = reduce(function (acc, ch, i) {
 		if (!(ch in acc)) {
 			acc[ch] = i > to.length ? '' : to[i];
@@ -4295,9 +4325,9 @@ XPathExpression.getOwnerDocument = function (n) {
 
 XPathExpression.detectHtmlDom = function (n) {
 	if (!n) { return false; }
-	
+
 	var doc = XPathExpression.getOwnerDocument(n);
-	
+
 	try {
 		return doc.implementation.hasFeature("HTML", "2.0");
 	} catch (e) {
@@ -4311,7 +4341,7 @@ XPathExpression.prototype.evaluate = function(n, t, res) {
 	// this library has been using this method up until now, so we will continue to use it
 	// ONLY when using an XPathExpression
 	this.context.caseInsensitive = XPathExpression.detectHtmlDom(n);
-	
+
 	var result = this.xpath.evaluate(this.context);
 	return new XPathResult(result, t);
 }
@@ -4622,7 +4652,7 @@ installDOM3XPathSupport(exports, new XPathParser());
 
         return defaultVariableResolver;
     }
-	
+
 	function copyIfPresent(prop, dest, source) {
 		if (prop in source) { dest[prop] = source[prop]; }
 	}

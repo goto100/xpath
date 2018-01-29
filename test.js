@@ -292,9 +292,13 @@ module.exports = {
 	}
 	
 	,'correct number to string conversion': function (test) {
-		assert.equal('0.0000000000000000000000005250000000000001', xpath.parse('0.525 div 1000000 div 1000000 div 1000000 div 1000000').evaluateString());
+		assert.equal('0.000000000000000000000000525', xpath.parse('0.525 div 1000000 div 1000000 div 1000000 div 1000000').evaluateString());
 		assert.equal('525000000000000000000000', xpath.parse('0.525 * 1000000 * 1000000 * 1000000 * 1000000').evaluateString());
-		
+		assert.equal('15.005', xpath.parse('10 + 5.005').evaluateString());
+		assert.equal('15.005', xpath.parse('5.005 + 10').evaluateString());
+		assert.equal('15.005', xpath.parse('25.005 - 10').evaluateString());
+		assert.equal('5.005', xpath.parse('115.005 mod 10').evaluateString());
+
 		test.done();
 	}
 	
