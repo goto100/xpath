@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+
 type SelectedValue = Node | Attr | string | number | boolean;
 interface XPathSelect {
     (expression: string, node?: Node): Array<SelectedValue>;
