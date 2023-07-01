@@ -1,3 +1,11 @@
+# IATI/xpath
+
+-   Fork of [IATI/xpath](https://github.com/iati/xpath)
+    -   Sent a performance improvement PR that hasn't been merged into the original project: https://github.com/goto100/xpath/pull/107
+        -   If that is ever merged, then we could get rid of this custom dependency.
+    -   Also merged this performance PR from another dev to our fork (also hasn't been merged into the original project): https://github.com/goto100/xpath/pull/108
+        -   If that is ever merged, then we could get rid of this custom dependency.
+
 ## xpath
 DOM 3 XPath 1.0 implemention and helper for JavaScript, with node.js support.
 

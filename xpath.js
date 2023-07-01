@@ -268,7 +268,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         };
         this.reduceActions[28] = function (rhs) {
             rhs[0].locationPath = rhs[2];
-            rhs[0].locationPath.steps.unshift(new Step(Step.DESCENDANTORSELF, NodeTest.nodeTest, []));
+            rhs[0].locationPath.steps.push(new Step(Step.DESCENDANTORSELF, NodeTest.nodeTest, []));
+            rhs[0].locationPath.steps.reverse();
             return rhs[0];
         };
         this.reduceActions[29] = function (rhs) {
@@ -1260,9 +1261,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                     var rhs = [];
                     for (var i = 0; i < num; i++) {
                         tokenType.pop();
-                        rhs.unshift(tokenValue.pop());
+                        rhs.push(tokenValue.pop());
                         state.pop();
                     }
+                    rhs.reverse();
                     var s_ = state[state.length - 1];
                     tokenType.push(XPathParser.productions[XPathParser.actionTableNumber[s].charCodeAt(a - 1) - 32][0]);
                     if (this.reduceActions[XPathParser.actionTableNumber[s].charCodeAt(a - 1) - 32] == undefined) {
@@ -1930,13 +1932,14 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 }
                 var st = [];
                 if (xpc.contextNode.firstChild != null) {
-                    st.unshift(xpc.contextNode.firstChild);
+                    st.push(xpc.contextNode.firstChild);
                 } else {
-                    st.unshift(xpc.contextNode.nextSibling);
+                    st.push(xpc.contextNode.nextSibling);
                 }
                 for (var m = xpc.contextNode.parentNode; m != null && m.nodeType != 9 /*Node.DOCUMENT_NODE*/ && m !== xpc.virtualRoot; m = m.parentNode) {
-                    st.unshift(m.nextSibling);
+                    st.push(m.nextSibling);
                 }
+                st.reverse();
                 do {
                     for (var m = st.pop(); m != null;) {
                         if (step.nodeTest.matches(m, xpc)) {
@@ -2021,7 +2024,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                             break outer;
                         }
                         if (step.nodeTest.matches(m, xpc)) {
-                            newNodes.unshift(m);
+                            newNodes.push(m);
+                            newNodes.reverse();
                         }
                         if (m.firstChild != null) {
                             st.push(m.nextSibling);
@@ -2980,6 +2984,22 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         }
     };
 
+    function compare(n1, n2) {
+      if (n1.lineNumber < n2.lineNumber) {
+        return -1;
+      }
+
+      if (n1.lineNumber > n2.lineNumber) {
+        return 1;
+      }
+
+      if (n1.columnNumber < n2.columnNumber) {
+        return -1;
+      }
+
+      return 1;
+    }
+
     function nodeOrder(n1, n2) {
         if (n1 === n2) {
             return 0;
@@ -3056,14 +3076,38 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         if (n1Par) {
             var cn = n1isAttr ? n1Par.attributes : n1Par.childNodes,
                 len = cn.length;
-            for (var i = 0; i < len; i += 1) {
-                var n = cn[i];
-                if (n === n1) {
-                    return -1;
-                }
-                if (n === n2) {
-                    return 1;
-                }
+
+            var start = 0;
+            var end = len - 1;
+
+            while (start <= end) {
+              var mid = Math.floor(start + (end - start)/2);
+
+              var midNode = cn[mid];
+
+              var fn1 = compare(n1, midNode);
+              var fn2 = compare(n2, midNode);
+
+              if (fn1 == 0) {
+                return -fn2;
+              }
+
+              if (fn2 == 0) {
+                return fn1;
+              }
+
+              if (fn1 < 0 && fn2 < 0) {
+                end = mid - 1;
+              }
+              else if (fn1 > 0  && fn2 > 0) {
+                start = mid + 1;
+              }
+              else if (fn1 < 0) {
+                return -1;
+              }
+              else {
+                return 1;
+              }
             }
         }
 
@@ -3211,11 +3255,35 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return p.node;
     };
 
+    XNodeSet.prototype.contains = function(n) {
+      if (this.nodes.length == 0) {
+        return false;
+      }
+
+      var start = 0;
+      var end = this.nodes.length - 1;
+
+      while (start <= end) {
+        var mid = Math.floor(start + (end - start)/2);
+
+        var midNode = this.nodes[mid];
+
+        if (n === midNode) {
+          return true;
+        }
+
+        if (compare(n, midNode) < 0) {
+          end = mid - 1;
+        }
+        else {
+          start = mid + 1;
+        }
+      }
+    };
+
     XNodeSet.prototype.add = function (n) {
-        for (var i = 0; i < this.nodes.length; i += 1) {
-            if (n === this.nodes[i]) {
-                return;
-            }
+        if (this.contains(n)) {
+          return;
         }
 
         this.tree = null;
