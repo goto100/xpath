@@ -1,34 +1,42 @@
 /// <reference lib="dom" />
 
-export type SelectedValue = Node | string | number | boolean | null;
+export type ScalarValue = string | number | boolean;
 
-export type SelectReturnType = Array<Node> | SelectedValue;
-export type SelectSingleReturnType = SelectedValue;
+export type SelectReturnType = Array<Node> | ScalarValue;
+export type SelectSingleReturnType = ScalarValue | Node | undefined;
+
+type Nullable<T> = T | null | undefined;
 
 export interface XPathSelect {
+    (expression: Nullable<undefined>, node: Node): [];
+    (expression: Nullable<undefined>, node: Node, single: false): [];
     (expression: string, node: Node): SelectReturnType;
     (expression: string, node: Node, single: false): SelectReturnType;
-    (expression: string, node: Node, single: true): SelectSingleReturnType;
+    (expression: Nullable<string>, node: Node, single: true): SelectSingleReturnType;
 }
 
 /**
  * Evaluate an XPath expression against a DOM node.
  */
+export function select(expression: Nullable<undefined>, node: Node): [];
+export function select(expression: Nullable<undefined>, node: Node, single: false): [];
 export function select(expression: string, node: Node): SelectReturnType;
 export function select(expression: string, node: Node, single: false): SelectReturnType;
-export function select(expression: string, node: Node, single: true): SelectSingleReturnType;
+export function select(expression: Nullable<string>, node: Node, single: true): SelectSingleReturnType;
 
 /**
  * Evaluate an xpath expression against a DOM node, returning the first result only.
  */
-export function select1(expression: string, node: Node): SelectSingleReturnType;
+export function select1(expression: Nullable<string>, node: Node): SelectSingleReturnType;
 
 /**
  * Evaluate an XPath expression against a DOM node using a given namespace resolver.
  */
-export function selectWithResolver(expression: string, node: Node, resolver?: XPathNSResolver | null): SelectReturnType;
-export function selectWithResolver(expression: string, node: Node, resolver: XPathNSResolver | null, single: false): SelectReturnType;
-export function selectWithResolver(expression: string, node: Node, resolver: XPathNSResolver | null, single: true): SelectSingleReturnType;
+export function selectWithResolver(expression: Nullable<undefined>, node: Node, resolver?: Nullable<XPathNSResolver>): [];
+export function selectWithResolver(expression: Nullable<undefined>, node: Node, resolver: Nullable<XPathNSResolver>, single: false): [];
+export function selectWithResolver(expression: string, node: Node, resolver?: Nullable<XPathNSResolver>): SelectReturnType;
+export function selectWithResolver(expression: string, node: Node, resolver: Nullable<XPathNSResolver>, single: false): SelectReturnType;
+export function selectWithResolver(expression: string, node: Node, resolver: Nullable<XPathNSResolver>, single: true): SelectSingleReturnType;
 
 /**
  * Creates a `select` function that uses the given namespace prefix to URI mappings when evaluating queries.

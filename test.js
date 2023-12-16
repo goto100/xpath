@@ -157,6 +157,54 @@ describe('xpath', () => {
             assert.strictEqual('JKR', xpath.selectWithResolver('//ns:field[@ns:type="author"]/text()', doc, resolver)[0].nodeValue);
         });
 
+        it('should select empty set with undefined xpath, using a resolver', () => {
+            var xml = '<book xmlns:testns="http://example.com/test"><testns:title>Harry Potter</testns:title><testns:field testns:type="author">JKR</testns:field></book>';
+            var doc = parseXml(xml);
+            var resolver = {
+                mappings: {
+                    'ns': 'http://example.com/test'
+                },
+                lookupNamespaceURI: function (prefix) {
+                    return this.mappings[prefix];
+                }
+            }
+            var nodes = xpath.selectWithResolver(undefined, doc, resolver);
+            assert.deepStrictEqual(nodes, []);
+
+            var node = xpath.selectWithResolver(undefined, doc, resolver, true);
+            assert.strictEqual(node, undefined);
+        });
+
+        it('should throw if undefined doc, using a resolver', () => {
+            var resolver = {
+                mappings: {
+                    'ns': 'http://example.com/test'
+                },
+                lookupNamespaceURI: function (prefix) {
+                    return this.mappings[prefix];
+                }
+            }
+            assert.throws(() => xpath.selectWithResolver(undefined, undefined, resolver));
+        });
+
+        it('should select empty set with undefined resolver', () => {
+            var xml = '<book xmlns:testns="http://example.com/test"><testns:title>Harry Potter</testns:title><testns:field testns:type="author">JKR</testns:field></book>';
+            var doc = parseXml(xml);
+            var resolver = {
+                mappings: {
+                    'ns': 'http://example.com/test'
+                },
+                lookupNamespaceURI: function (prefix) {
+                    return this.mappings[prefix];
+                }
+            }
+            var nodes = xpath.selectWithResolver(undefined, doc, undefined);
+            assert.deepStrictEqual(nodes, []);
+
+            var node = xpath.selectWithResolver(undefined, doc, undefined, true);
+            assert.strictEqual(node, undefined);
+        });
+
         it('should select with namespaces, using namespace mappings', () => {
             var xml = '<book xmlns:testns="http://example.com/test"><testns:title>Harry Potter</testns:title><testns:field testns:type="author">JKR</testns:field></book>';
             var doc = parseXml(xml);
