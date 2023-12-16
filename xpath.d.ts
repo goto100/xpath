@@ -1,9 +1,9 @@
 /// <reference lib="dom" />
 
-export type SelectedValue = Node | string | number | boolean | null;
+export type ScalarValue = string | number | boolean;
 
-export type SelectReturnType = Array<Node> | SelectedValue;
-export type SelectSingleReturnType = SelectedValue;
+export type SelectReturnType = Array<Node> | ScalarValue;
+export type SelectSingleReturnType = ScalarValue | Node | undefined;
 
 export interface XPathSelect {
     (expression: string, node: Node): SelectReturnType;
@@ -38,14 +38,14 @@ export function selectWithResolver(expression: string, node: Node, resolver: XPa
 export function useNamespaces(namespaceMap: Record<string, string>): XPathSelect;
 
 // Type guards to narrow down the type of the selected type of a returned Node object
-export function isNodeLike(value: SelectedValue): value is Node;
-export function isArrayOfNodes(value: SelectedValue): value is Node[];
-export function isElement(value: SelectedValue): value is Element;
-export function isAttribute(value: SelectedValue): value is Attr;
-export function isTextNode(value: SelectedValue): value is Text;
-export function isCDATASection(value: SelectedValue): value is CDATASection;
-export function isProcessingInstruction(value: SelectedValue): value is ProcessingInstruction;
-export function isComment(value: SelectedValue): value is Comment;
-export function isDocumentNode(value: SelectedValue): value is Document;
-export function isDocumentTypeNode(value: SelectedValue): value is DocumentType;
-export function isDocumentFragment(value: SelectedValue): value is DocumentFragment;
+export function isNodeLike(value: SelectSingleReturnType): value is Node;
+export function isArrayOfNodes(value: SelectReturnType): value is Node[];
+export function isElement(value: SelectSingleReturnType): value is Element;
+export function isAttribute(value: SelectSingleReturnType): value is Attr;
+export function isTextNode(value: SelectSingleReturnType): value is Text;
+export function isCDATASection(value: SelectSingleReturnType): value is CDATASection;
+export function isProcessingInstruction(value: SelectSingleReturnType): value is ProcessingInstruction;
+export function isComment(value: SelectSingleReturnType): value is Comment;
+export function isDocumentNode(value: SelectSingleReturnType): value is Document;
+export function isDocumentTypeNode(value: SelectSingleReturnType): value is DocumentType;
+export function isDocumentFragment(value: SelectSingleReturnType): value is DocumentFragment;
