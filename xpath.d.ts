@@ -36,16 +36,3 @@ export function selectWithResolver(expression: string, node: Node, resolver: XPa
  * @return a function with the same signature as `xpath.select`
  */
 export function useNamespaces(namespaceMap: Record<string, string>): XPathSelect;
-
-// Type guards to narrow down the type of the selected type of a returned Node object
-export function isNodeLike(value: SelectedValue): value is Node;
-export function isArrayOfNodes(value: SelectReturnType): value is Node[];
-export function isElement(value: SelectedValue): value is Element;
-export function isAttribute(value: SelectedValue): value is Attr;
-export function isTextNode(value: SelectedValue): value is Text;
-export function isCDATASection(value: SelectedValue): value is CDATASection;
-export function isProcessingInstruction(value: SelectedValue): value is ProcessingInstruction;
-export function isComment(value: SelectedValue): value is Comment;
-export function isDocumentNode(value: SelectedValue): value is Document;
-export function isDocumentTypeNode(value: SelectedValue): value is DocumentType;
-export function isDocumentFragment(value: SelectedValue): value is DocumentFragment;

@@ -5010,32 +5010,5 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     exports.select1 = function (e, doc) {
         return exports.select(e, doc, true);
     };
-
-    var isArrayOfNodes = function (value) {
-        return Array.isArray(value) && value.every(isNodeLike);
-    };
-
-    var isNodeOfType = function (type) {
-        return function (value) {
-            return isNodeLike(value) && value.nodeType === type;
-        };
-    };
-
-    assign(
-        exports,
-        {
-            isNodeLike: isNodeLike,
-            isArrayOfNodes: isArrayOfNodes,
-            isElement: isNodeOfType(NodeTypes.ELEMENT_NODE),
-            isAttribute: isNodeOfType(NodeTypes.ATTRIBUTE_NODE),
-            isTextNode: isNodeOfType(NodeTypes.TEXT_NODE),
-            isCDATASection: isNodeOfType(NodeTypes.CDATA_SECTION_NODE),
-            isProcessingInstruction: isNodeOfType(NodeTypes.PROCESSING_INSTRUCTION_NODE),
-            isComment: isNodeOfType(NodeTypes.COMMENT_NODE),
-            isDocumentNode: isNodeOfType(NodeTypes.DOCUMENT_NODE),
-            isDocumentTypeNode: isNodeOfType(NodeTypes.DOCUMENT_TYPE_NODE),
-            isDocumentFragment: isNodeOfType(NodeTypes.DOCUMENT_FRAGMENT_NODE),
-        }
-    );
     // end non-node wrapper
 })(xpath);
