@@ -524,6 +524,10 @@ describe('xpath', () => {
             assert.equal(first3Nodes.length, 6);
 
             assert.equal(first3Nodes[5].textContent, '３章');
+
+            const allButFirst = xpath.parse('/*/book[1]/chapter[1]/following::chapter').select({ node: doc });
+
+            assert.equal(allButFirst.length, 7);
         });
 
         it('should respect reverse axes', () => {

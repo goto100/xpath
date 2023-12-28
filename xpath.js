@@ -1271,7 +1271,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         if (!s) {
             throw new Error('XPath expression unspecified.');
         }
-        if (typeof s !== 'string'){
+        if (typeof s !== 'string') {
             throw new Error('XPath expression must be a string.');
         }
 
@@ -1312,9 +1312,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                     var rhs = [];
                     for (var i = 0; i < num; i++) {
                         tokenType.pop();
-                        rhs.unshift(tokenValue.pop());
+                        rhs.push(tokenValue.pop());
                         state.pop();
                     }
+                    rhs.reverse();
                     var s_ = state[state.length - 1];
                     tokenType.push(XPathParser.productions[XPathParser.actionTableNumber[s].charCodeAt(a - 1) - 32][0]);
                     if (this.reduceActions[XPathParser.actionTableNumber[s].charCodeAt(a - 1) - 32] == undefined) {
@@ -1900,6 +1901,76 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return null;
     };
 
+
+    var applyFollowingStep = function (step, xpc, nodes) {
+        var newNodes = [];
+
+        // TODO: why?
+        if (xpc.contextNode === xpc.virtualRoot) {
+            return newNodes;
+        }
+
+        var st = [];
+        if (xpc.contextNode.firstChild != null) {
+            st.push(xpc.contextNode.firstChild);
+        }
+
+        for (var m = xpc.contextNode; m != null && m.nodeType !== NodeTypes.DOCUMENT_NODE && m !== xpc.virtualRoot; m = m.parentNode) {
+            st.push(m.nextSibling);
+        }
+        st.reverse();
+
+        do {
+            for (var m = st.pop(); m != null;) {
+                if (step.nodeTest.matches(m, xpc)) {
+                    newNodes.push(m);
+                }
+                if (m.firstChild != null) {
+                    st.push(m.nextSibling);
+                    m = m.firstChild;
+                } else {
+                    m = m.nextSibling;
+                }
+            }
+        } while (st.length > 0);
+
+        return newNodes;
+    };
+
+    var applyPrecedingStep = function (step, xpc) {
+        var newNodes = [];
+        var st;
+
+        // TODO: Use getRoot instead of this if-else?
+        if (xpc.virtualRoot != null) {
+            st = [xpc.virtualRoot];
+        } else {
+            // cannot rely on .ownerDocument because the node may be in a document fragment
+            st = [findRoot(xpc.contextNode)];
+        }
+
+        outer: while (st.length > 0) {
+            for (var m = st.pop(); m != null;) {
+                if (m == xpc.contextNode) {
+                    break outer;
+                }
+                if (step.nodeTest.matches(m, xpc)) {
+                    newNodes.push(m);
+                }
+                if (m.firstChild != null) {
+                    st.push(m.nextSibling);
+                    m = m.firstChild;
+                } else {
+                    m = m.nextSibling;
+                }
+            }
+        }
+
+        newNodes.reverse();
+
+        return newNodes;
+    };
+
     PathExpr.applyStep = function (step, xpc, node) {
         if (!node) {
             throw new Error('Context node not found when evaluating XPath step: ' + step);
@@ -2006,32 +2077,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 break;
 
             case Step.FOLLOWING:
-                if (xpc.contextNode === xpc.virtualRoot) {
-                    break;
-                }
-                var st = [];
-                if (xpc.contextNode.firstChild != null) {
-                    st.unshift(xpc.contextNode.firstChild);
-                } else {
-                    st.unshift(xpc.contextNode.nextSibling);
-                }
-                for (var m = xpc.contextNode.parentNode; m != null && m.nodeType != NodeTypes.DOCUMENT_NODE && m !== xpc.virtualRoot; m = m.parentNode) {
-                    st.unshift(m.nextSibling);
-                }
-                do {
-                    for (var m = st.pop(); m != null;) {
-                        if (step.nodeTest.matches(m, xpc)) {
-                            newNodes.push(m);
-                        }
-                        if (m.firstChild != null) {
-                            st.push(m.nextSibling);
-                            m = m.firstChild;
-                        } else {
-                            m = m.nextSibling;
-                        }
-                    }
-                } while (st.length > 0);
-                break;
+                return applyFollowingStep(step, xpc);
 
             case Step.FOLLOWINGSIBLING:
                 if (xpc.contextNode === xpc.virtualRoot) {
@@ -2089,30 +2135,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 break;
 
             case Step.PRECEDING:
-                var st;
-                if (xpc.virtualRoot != null) {
-                    st = [xpc.virtualRoot];
-                } else {
-                    // cannot rely on .ownerDocument because the node may be in a document fragment
-                    st = [findRoot(xpc.contextNode)];
-                }
-                outer: while (st.length > 0) {
-                    for (var m = st.pop(); m != null;) {
-                        if (m == xpc.contextNode) {
-                            break outer;
-                        }
-                        if (step.nodeTest.matches(m, xpc)) {
-                            newNodes.unshift(m);
-                        }
-                        if (m.firstChild != null) {
-                            st.push(m.nextSibling);
-                            m = m.firstChild;
-                        } else {
-                            m = m.nextSibling;
-                        }
-                    }
-                }
-                break;
+                return applyPrecedingStep(step, xpc);
 
             case Step.PRECEDINGSIBLING:
                 if (xpc.contextNode === xpc.virtualRoot) {
