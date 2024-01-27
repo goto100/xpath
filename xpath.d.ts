@@ -49,3 +49,43 @@ export function isComment(value: SelectedValue): value is Comment;
 export function isDocumentNode(value: SelectedValue): value is Document;
 export function isDocumentTypeNode(value: SelectedValue): value is DocumentType;
 export function isDocumentFragment(value: SelectedValue): value is DocumentFragment;
+
+export function parse(expression: string): XPathEvaluator;
+
+export interface XPathEvaluator {
+  evaluate(options: EvaluateOptions): XPathResult;
+  evaluateBoolean(options: EvaluateOptions): boolean;
+  evaluateNumber(options: EvaluateOptions): number;
+  evaluateString(options: EvaluateOptions): string;
+  evaluateNodeSet(options: EvaluateOptions): Node[];
+  select(options: EvaluateOptions): SelectReturnType;
+  select1(options: EvaluateOptions): SelectSingleReturnType;
+}
+
+export interface XPathEvaluateOptions {
+  node: Node;
+  functions?: Record<string, XPathFunction> | XPathFunctionResolver;
+  allowAnyNamespaceForNoPrefix?: boolean;
+  isHtml?: boolean;
+}
+
+export type XPathFunctionResolver = XPathFunctionBasicResolver | {
+  getFunction: XPathFunctionBasicResolver
+};
+type XPathFunctionBasicResolver = (name: string, namespace: string | null) => XPathFunction | null;
+
+export type XPathFunction = (context: XPathFunctionContext, ...args: XPathResult[]) => unknown;
+
+export interface XPathFunctionContext {
+  contextNode: Node;
+}
+
+
+export interface XPathResult {
+  booleanValue(): boolean;
+  numberValue(): number;
+  stringValue(): string;
+  toArray?(): Node[];
+  first?(): Node | null;
+  size?: number;
+}
