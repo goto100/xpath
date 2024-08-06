@@ -2193,7 +2193,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             return nodes;
         }
 
-        var startNodes = locationPath.absolute ? [PathExpr.getRoot(xpc, nodes)] : nodes;
+        var startNodes = locationPath.absolute && nodes[0].nodeType !== NodeTypes.DOCUMENT_FRAGMENT_NODE ? [PathExpr.getRoot(xpc, nodes)] : nodes;
 
         return PathExpr.applySteps(locationPath.steps, xpc, startNodes);
     };
@@ -2536,7 +2536,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         [NodeTypes.COMMENT_NODE],
         'comment()'
     );
-    // elements, attributes, text, cdata, PIs, comments, document nodes
+    // elements, attributes, text, cdata, PIs, comments, document, document-fragment nodes
     NodeTest.nodeTest = NodeTest.makeNodeTypeTest(
         NodeTest.NODE,
         [
@@ -2547,6 +2547,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             NodeTypes.PROCESSING_INSTRUCTION_NODE,
             NodeTypes.COMMENT_NODE,
             NodeTypes.DOCUMENT_NODE,
+            NodeTypes.DOCUMENT_FRAGMENT_NODE
         ],
         'node()'
     );
