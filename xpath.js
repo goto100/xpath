@@ -4531,7 +4531,9 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         // backward compatibility - no reliable way to detect whether the DOM is HTML, but
         // this library has been using this method up until now, so we will continue to use it
         // ONLY when using an XPathExpression
-        this.context.caseInsensitive = XPathExpression.detectHtmlDom(n);
+        const htmlDom = XPathExpression.detectHtmlDom(n);
+        this.context.caseInsensitive = htmlDom;
+        this.context.allowAnyNamespaceForNoPrefix = htmlDom;
 
         var result = this.xpath.evaluate(this.context);
 
