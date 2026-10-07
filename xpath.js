@@ -109,6 +109,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return x === null || x === undefined;
     };
 
+    var isPositiveInteger = function (x) {
+        return typeof x === 'number' && x >= 1 && Math.floor(x) === x;
+    };
+
     var isValidNodeType = function (nodeType) {
         return nodeType === NAMESPACE_NODE_NODETYPE ||
             (Number.isInteger(nodeType)
@@ -1359,9 +1363,18 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             throw new Error("Context node does not appear to be a valid DOM node.");
         }
 
+        // The context position and size are supplied by the host (e.g. an XSLT processor
+        // evaluating inside xsl:for-each), and default to 1.
+        var size = isNil(c.expressionContextSize) ? 1 : c.expressionContextSize;
+        var position = isNil(c.expressionContextPosition) ? 1 : c.expressionContextPosition;
+
+        if (!isPositiveInteger(size) || !isPositiveInteger(position) || position > size) {
+            throw new Error("Context position and size must be positive integers, with position no greater than size.");
+        }
+
         c.contextNode = c.expressionContextNode;
-        c.contextSize = 1;
-        c.contextPosition = 1;
+        c.contextSize = size;
+        c.contextPosition = position;
 
         // [2017-11-25] Removed usage of .implementation.hasFeature() since it does
         //              not reliably detect HTML DOMs (always returns false in xmldom and true in browsers)
@@ -4857,6 +4870,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 context.functionResolver = makeFunctionResolver(options.functions);
                 context.variableResolver = makeVariableResolver(options.variables);
                 context.expressionContextNode = options.node;
+                context.expressionContextPosition = options.position;
+                context.expressionContextSize = options.size;
                 copyIfPresent('allowAnyNamespaceForNoPrefix', context, options);
                 copyIfPresent('isHtml', context, options);
             } else {
