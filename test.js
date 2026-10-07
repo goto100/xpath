@@ -749,6 +749,40 @@ describe('xpath', () => {
             assert.strictEqual('<title>Harry Potter</title>', single.toString());
         });
 
+        it('should default context position and size to 1', () => {
+            var doc = parseXml('<book />');
+
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(), 1);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber(), 1);
+            assert.strictEqual(xpath.parse('position()').evaluateNumber({ node: doc }), 1);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber({ node: doc }), 1);
+        });
+
+        it('should support context position and size', () => {
+            var doc = parseXml('<book><chapter>One</chapter><chapter>Two</chapter><chapter>Three</chapter></book>');
+            var chapters = xpath.select('/book/chapter', doc);
+            var options = function (i) {
+                return { node: chapters[i], position: i + 1, size: chapters.length };
+            };
+
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(options(1)), 2);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber(options(1)), 3);
+            assert.strictEqual(xpath.parse('position() = last()').evaluateBoolean(options(1)), false);
+            assert.strictEqual(xpath.parse('position() = last()').evaluateBoolean(options(2)), true);
+            assert.strictEqual(xpath.parse('concat(., ":", position(), "/", last())').evaluateString(options(2)), 'Three:3/3');
+        });
+
+        it('should not apply context position and size inside predicates or steps', () => {
+            var doc = parseXml('<book><chapter>One</chapter><chapter>Two</chapter><chapter>Three</chapter></book>');
+            var options = { node: doc.documentElement, position: 3, size: 5 };
+
+            assert.strictEqual(xpath.parse('chapter[1]').select1(options).textContent, 'One');
+            assert.strictEqual(xpath.parse('chapter[last()]').select1(options).textContent, 'Three');
+            assert.strictEqual(xpath.parse('count(chapter[position() < 3])').evaluateNumber(options), 2);
+            assert.strictEqual(xpath.parse('(chapter)[position() = 2]').select1(options).textContent, 'Two');
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(options), 3);
+        });
+
         it('should support select()', () => {
             var xml = '<book><title>Harry Potter</title></book>';
             var doc = parseXml(xml);
@@ -1322,6 +1356,26 @@ describe('xpath', () => {
                 assert.throws(() => xpath.parse('/*').select({ node }), {
                     message: 'Context node does not appear to be a valid DOM node.',
                 });
+            }
+        });
+
+        it('should reject invalid context position and size', () => {
+            var doc = parseXml('<book />');
+            var invalid = [
+                { position: 0 },
+                { position: 2 },
+                { position: 1.5, size: 2 },
+                { position: '1', size: 2 },
+                { position: 1, size: 0 },
+                { position: 3, size: 2 },
+                { position: NaN, size: 2 },
+                { size: -1 },
+            ];
+
+            for (let opts of invalid) {
+                assert.throws(() => xpath.parse('position()').evaluateNumber(Object.assign({ node: doc }, opts)), {
+                    message: 'Context position and size must be positive integers, with position no greater than size.',
+                }, JSON.stringify(opts));
             }
         });
 
