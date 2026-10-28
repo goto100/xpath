@@ -49,3 +49,62 @@ export function isComment(value: SelectedValue): value is Comment;
 export function isDocumentNode(value: SelectedValue): value is Document;
 export function isDocumentTypeNode(value: SelectedValue): value is DocumentType;
 export function isDocumentFragment(value: SelectedValue): value is DocumentFragment;
+
+export function parse(expression: string): XPathEvaluator;
+
+export interface XPathEvaluator {
+    evaluate(options?: XPathEvaluateOptions): XPathResult;
+    evaluateBoolean(options?: XPathEvaluateOptions): boolean;
+    evaluateNumber(options?: XPathEvaluateOptions): number;
+    evaluateString(options?: XPathEvaluateOptions): string;
+    evaluateNodeSet(options?: XPathEvaluateOptions): XPathNodeSet;
+    select(options?: XPathEvaluateOptions): Node[];
+    select1(options?: XPathEvaluateOptions): Node | undefined;
+}
+
+export interface XPathEvaluateOptions {
+    node?: Node;
+    namespaces?: XPathNamespaceResolver;
+    variables?: XPathVariableResolver;
+    functions?: Record<string, XPathFunction> | XPathFunctionResolver;
+    position?: number;
+    size?: number;
+    allowAnyNamespaceForNoPrefix?: boolean;
+    isHtml?: boolean;
+}
+
+export type XPathNamespaceResolver = Record<string, string> | XPathNamespaceBasicResolver | {
+    getNamespace: XPathNamespaceBasicResolver
+};
+export type XPathNamespaceBasicResolver = (prefix: string, node: Node) => string | null | undefined;
+
+export type XPathVariableResolver = Record<string, XPathValue> | XPathVariableBasicResolver | {
+    getVariable: XPathVariableBasicResolver
+};
+export type XPathVariableBasicResolver = (name: string, namespace: string | null) => XPathValue;
+
+export type XPathFunctionResolver = XPathFunctionBasicResolver | {
+    getFunction: XPathFunctionBasicResolver
+};
+export type XPathFunctionBasicResolver = (name: string, namespace: string | null) => XPathFunction | null | undefined;
+
+export type XPathFunction = (context: XPathFunctionContext, ...args: XPathResult[]) => XPathValue;
+
+export interface XPathFunctionContext {
+    contextNode: Node;
+}
+
+/** Values that variables and custom functions may produce; nodes and arrays of nodes become node sets. */
+export type XPathValue = string | number | boolean | Node | Node[] | XPathResult | null | undefined;
+
+export interface XPathResult {
+    booleanValue(): boolean;
+    numberValue(): number;
+    stringValue(): string;
+}
+
+export interface XPathNodeSet extends XPathResult {
+    readonly size: number;
+    first(): Node | null;
+    toArray(): Node[];
+}
