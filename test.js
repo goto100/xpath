@@ -630,6 +630,20 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select('number("+33")')), 'number("+33")');
         });
 
+        it('should convert node-sets to numbers using XPath number syntax', () => {
+            var doc = parseXml('<r><hex>0x10</hex><exp>1e3</exp><empty/><inf>Infinity</inf><ok> 42.5 </ok></r>');
+
+            assert.strictEqual(42.5, xpath.select1('number(/r/ok)', doc));
+            assert.strictEqual(43.5, xpath.select1('/r/ok + 1', doc));
+
+            // JS Number() would give 16, 1000, 0 and Infinity here
+            assert.ok(Number.isNaN(xpath.select1('number(/r/hex)', doc)), 'number(/r/hex)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/exp)', doc)), 'number(/r/exp)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/empty)', doc)), 'number(/r/empty)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/inf)', doc)), 'number(/r/inf)');
+            assert.ok(Number.isNaN(xpath.select1('/r/hex + 0', doc)), '/r/hex + 0');
+        });
+
         it('should convert numbers to strings correctly', () => {
             assert.strictEqual('0.0000000000000000000000005250000000000001', xpath.parse('0.525 div 1000000 div 1000000 div 1000000 div 1000000').evaluateString());
             assert.strictEqual('525000000000000000000000', xpath.parse('0.525 * 1000000 * 1000000 * 1000000 * 1000000').evaluateString());
@@ -1224,6 +1238,51 @@ describe('xpath', () => {
 
             assert.strictEqual(andTheBooks.length, 2);
             assert.strictEqual(secretBooks.length, 1);
+        });
+
+        it('should follow XPath 1.0 semantics in substring()', () => {
+            var sub = function (args) { return xpath.select('substring(' + args + ')'); };
+
+            // examples from the XPath 1.0 spec, section 4.2
+            assert.strictEqual(sub('"12345", 2, 3'), '234');
+            assert.strictEqual(sub('"12345", 2'), '2345');
+            assert.strictEqual(sub('"12345", 1.5, 2.6'), '234');
+            assert.strictEqual(sub('"12345", 0, 3'), '12');
+            assert.strictEqual(sub('"12345", 0 div 0, 3'), '');
+            assert.strictEqual(sub('"12345", 1, 0 div 0'), '');
+            assert.strictEqual(sub('"12345", -42, 1 div 0'), '12345');
+            assert.strictEqual(sub('"12345", -1 div 0, 1 div 0'), '');
+
+            // a negative length or NaN start must not be reinterpreted by JS substring()
+            assert.strictEqual(sub('"12345", 3, -1'), '');
+            assert.strictEqual(sub('"12345", 4, -2'), '');
+            assert.strictEqual(sub('"12345", 0 div 0'), '');
+        });
+
+        it('should support lang() on any node type, inheriting and ignoring case', () => {
+            var doc = parseXml('<d xml:lang="EN-us"><p a="1">text<!--c--></p><q xml:lang="fr"/></d>');
+
+            // inherited from the nearest ancestor with xml:lang
+            assert.strictEqual(xpath.select('//p[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//q[lang("en")]', doc).length, 0);
+            // compared case-insensitively, with sub-language matching
+            assert.strictEqual(xpath.select('//p[lang("en-US")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//p[lang("us")]', doc).length, 0);
+            // non-element context nodes use their element's language instead of throwing
+            assert.strictEqual(xpath.select('//text()[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//comment()[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//@a[lang("en")]', doc).length, 1);
+        });
+
+        it('should support id() with strings and node-sets', () => {
+            var doc = parseXml('<r><e id="a"/><e id="b"/><ref>b</ref><ref>a</ref></r>');
+
+            assert.strictEqual(xpath.select('id("a b")', doc).length, 2);
+            // a node-set argument uses each node's string-value, not its serialization
+            assert.strictEqual(xpath.select('id(/r/ref)', doc).length, 2);
+            // surrounding whitespace must not turn into a lookup of the empty ID
+            assert.strictEqual(xpath.select('id(" a ")', doc).length, 1);
+            assert.strictEqual(xpath.select('id("")', doc).length, 0);
         });
 
         it('should support builtin functions', () => {
