@@ -3685,7 +3685,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         }
         id = arguments[1].evaluate(c);
         if (Utilities.instance_of(id, XNodeSet)) {
-            id = id.toArray().join(" ");
+            // each node's string-value is an ID list (XPath 1.0 4.1); join() would use the node's toString()
+            id = id.toArray().map(function (node) {
+                return XNodeSet.prototype.stringForNode(node);
+            }).join(" ");
         } else {
             id = id.stringValue();
         }
@@ -3696,6 +3699,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             ? c.contextNode
             : c.contextNode.ownerDocument;
         for (var i = 0; i < ids.length; i++) {
+            // leading/trailing whitespace yields empty tokens, and "" is never an ID
+            if (ids[i] === "") {
+                continue;
+            }
             var n;
             if (doc.getElementById) {
                 n = doc.getElementById(ids[i]);

@@ -1274,6 +1274,17 @@ describe('xpath', () => {
             assert.strictEqual(xpath.select('//@a[lang("en")]', doc).length, 1);
         });
 
+        it('should support id() with strings and node-sets', () => {
+            var doc = parseXml('<r><e id="a"/><e id="b"/><ref>b</ref><ref>a</ref></r>');
+
+            assert.strictEqual(xpath.select('id("a b")', doc).length, 2);
+            // a node-set argument uses each node's string-value, not its serialization
+            assert.strictEqual(xpath.select('id(/r/ref)', doc).length, 2);
+            // surrounding whitespace must not turn into a lookup of the empty ID
+            assert.strictEqual(xpath.select('id(" a ")', doc).length, 1);
+            assert.strictEqual(xpath.select('id("")', doc).length, 0);
+        });
+
         it('should support builtin functions', () => {
             var translated = xpath.parse('translate("hello", "lhho", "yHb")').evaluateString();
 
