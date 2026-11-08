@@ -3971,17 +3971,27 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             throw new Error("Function lang expects (string)");
         }
         var lang;
-        for (var n = c.contextNode; n != null && n.nodeType != NodeTypes.DOCUMENT_NODE; n = n.parentNode) {
-            var a = n.getAttributeNS(XPath.XML_NAMESPACE_URI, "lang");
+        var n = c.contextNode;
+        // attribute and namespace nodes have no parentNode; their language is their element's
+        if (n.nodeType == NodeTypes.ATTRIBUTE_NODE || n.nodeType == NodeTypes.NAMESPACE_NODE) {
+            n = PathExpr.getOwnerElement(n);
+        }
+        for (; n != null && n.nodeType != NodeTypes.DOCUMENT_NODE; n = n.parentNode) {
+            if (n.nodeType != NodeTypes.ELEMENT_NODE) {
+                continue;
+            }
+            // getAttributeNodeNS: some DOMs (xmldom 0.8) return '' rather than null from getAttributeNS
+            var a = n.getAttributeNodeNS(XPath.XML_NAMESPACE_URI, "lang");
             if (a != null) {
-                lang = String(a);
+                lang = String(a.value).toLowerCase();
                 break;
             }
         }
         if (lang == null) {
             return XBoolean.false_;
         }
-        var s = arguments[1].evaluate(c).stringValue();
+        // the comparison ignores case (XPath 1.0 4.3)
+        var s = arguments[1].evaluate(c).stringValue().toLowerCase();
         return new XBoolean(lang.substring(0, s.length) == s
             && (lang.length == s.length || lang.charAt(s.length) == '-'));
     };

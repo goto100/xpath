@@ -1259,6 +1259,21 @@ describe('xpath', () => {
             assert.strictEqual(sub('"12345", 0 div 0'), '');
         });
 
+        it('should support lang() on any node type, inheriting and ignoring case', () => {
+            var doc = parseXml('<d xml:lang="EN-us"><p a="1">text<!--c--></p><q xml:lang="fr"/></d>');
+
+            // inherited from the nearest ancestor with xml:lang
+            assert.strictEqual(xpath.select('//p[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//q[lang("en")]', doc).length, 0);
+            // compared case-insensitively, with sub-language matching
+            assert.strictEqual(xpath.select('//p[lang("en-US")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//p[lang("us")]', doc).length, 0);
+            // non-element context nodes use their element's language instead of throwing
+            assert.strictEqual(xpath.select('//text()[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//comment()[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//@a[lang("en")]', doc).length, 1);
+        });
+
         it('should support builtin functions', () => {
             var translated = xpath.parse('translate("hello", "lhho", "yHb")').evaluateString();
 
