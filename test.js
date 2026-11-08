@@ -1240,6 +1240,25 @@ describe('xpath', () => {
             assert.strictEqual(secretBooks.length, 1);
         });
 
+        it('should follow XPath 1.0 semantics in substring()', () => {
+            var sub = function (args) { return xpath.select('substring(' + args + ')'); };
+
+            // examples from the XPath 1.0 spec, section 4.2
+            assert.strictEqual(sub('"12345", 2, 3'), '234');
+            assert.strictEqual(sub('"12345", 2'), '2345');
+            assert.strictEqual(sub('"12345", 1.5, 2.6'), '234');
+            assert.strictEqual(sub('"12345", 0, 3'), '12');
+            assert.strictEqual(sub('"12345", 0 div 0, 3'), '');
+            assert.strictEqual(sub('"12345", 1, 0 div 0'), '');
+            assert.strictEqual(sub('"12345", -42, 1 div 0'), '12345');
+            assert.strictEqual(sub('"12345", -1 div 0, 1 div 0'), '');
+
+            // a negative length or NaN start must not be reinterpreted by JS substring()
+            assert.strictEqual(sub('"12345", 3, -1'), '');
+            assert.strictEqual(sub('"12345", 4, -2'), '');
+            assert.strictEqual(sub('"12345", 0 div 0'), '');
+        });
+
         it('should support builtin functions', () => {
             var translated = xpath.parse('translate("hello", "lhho", "yHb")').evaluateString();
 

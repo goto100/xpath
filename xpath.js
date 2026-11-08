@@ -3852,9 +3852,16 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             throw new Error("Function substring expects (string, number, number?)");
         }
         var s = arguments[1].evaluate(c).stringValue();
-        var n1 = Math.round(arguments[2].evaluate(c).numberValue()) - 1;
-        var n2 = arguments.length == 4 ? n1 + Math.round(arguments[3].evaluate(c).numberValue()) : undefined;
-        return new XString(s.substring(n1, n2));
+        var start = Math.round(arguments[2].evaluate(c).numberValue());
+        var end = arguments.length == 4 ? start + Math.round(arguments[3].evaluate(c).numberValue()) : Infinity;
+        // Characters at 1-based position p with start <= p < end (XPath 1.0 4.2). A NaN
+        // bound or non-positive length selects nothing; JS substring() would swap or zero them.
+        if (!(start < end)) {
+            return new XString("");
+        }
+        var from = Math.max(start, 1) - 1;
+        var to = Math.min(end, s.length + 1) - 1;
+        return new XString(from < to ? s.substring(from, to) : "");
     };
 
     Functions.stringLength = function () {
