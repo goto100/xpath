@@ -630,6 +630,20 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select('number("+33")')), 'number("+33")');
         });
 
+        it('should convert node-sets to numbers using XPath number syntax', () => {
+            var doc = parseXml('<r><hex>0x10</hex><exp>1e3</exp><empty/><inf>Infinity</inf><ok> 42.5 </ok></r>');
+
+            assert.strictEqual(42.5, xpath.select1('number(/r/ok)', doc));
+            assert.strictEqual(43.5, xpath.select1('/r/ok + 1', doc));
+
+            // JS Number() would give 16, 1000, 0 and Infinity here
+            assert.ok(Number.isNaN(xpath.select1('number(/r/hex)', doc)), 'number(/r/hex)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/exp)', doc)), 'number(/r/exp)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/empty)', doc)), 'number(/r/empty)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/inf)', doc)), 'number(/r/inf)');
+            assert.ok(Number.isNaN(xpath.select1('/r/hex + 0', doc)), '/r/hex + 0');
+        });
+
         it('should convert numbers to strings correctly', () => {
             assert.strictEqual('0.0000000000000000000000005250000000000001', xpath.parse('0.525 div 1000000 div 1000000 div 1000000 div 1000000').evaluateString());
             assert.strictEqual('525000000000000000000000', xpath.parse('0.525 * 1000000 * 1000000 * 1000000 * 1000000').evaluateString());

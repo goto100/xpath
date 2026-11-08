@@ -3314,12 +3314,13 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return this.toString();
     };
 
+    // Pass a primitive string so XNumber applies XPath number syntax, not JS Number().
     XNodeSet.prototype.number = function () {
-        return new XNumber(this.string());
+        return new XNumber(this.toString());
     };
 
     XNodeSet.prototype.numberValue = function () {
-        return Number(this.string());
+        return this.number().numberValue();
     };
 
     XNodeSet.prototype.bool = function () {
