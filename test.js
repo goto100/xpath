@@ -255,6 +255,32 @@ describe('xpath', () => {
             assert.strictEqual(xpath.select("count(preceding::chapter)", chapter), 4);
         });
 
+        it('should exclude descendants from following::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/t/following::node()', '<r><t>x</t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/t/following::*', '<r><t><y/></t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/following::*', '<r><t/><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/a/t/following::*', xml), ['b', 'c', 'd', 't', 'e']);
+            assert.deepEqual(names('/r/a/t/@q/following::*', xml), ['k', 'b', 'c', 'd', 't', 'e']);
+            assert.strictEqual(xpath.select('count(//*/following::*)', parseXml(xml)), 5);
+        });
+
+        it('should exclude ancestors from preceding::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/a/t/preceding::*', '<r><a><t/><b/></a><c><d/></c><t/><e/></r>'), []);
+            assert.deepEqual(names('/r/t/preceding::node()', '<r><t>x</t><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/c/d/preceding::*', xml), ['a', 't', 'k', 'b']);
+            assert.deepEqual(names('/r/e/preceding::*', xml), ['a', 't', 'k', 'b', 'c', 'd', 't']);
+            assert.deepEqual(names('/r/c/d/preceding::*[1]', xml), ['b']);
+            assert.deepEqual(names('/r/c/@x/preceding::*', '<r><a><b/></a><c x="1"><d/></c></r>'), ['a', 'b']);
+        });
+
         it('should allow getting sorted and unsorted arrays from nodesets', () => {
             const doc = parseXml('<book><character>Harry</character><character>Ron</character><character>Hermione</character></book>');
             const path = xpath.parse("/*/*[3] | /*/*[2] | /*/*[1]");
