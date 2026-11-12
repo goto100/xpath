@@ -2022,14 +2022,24 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 if (xpc.contextNode === xpc.virtualRoot) {
                     break;
                 }
+                // following:: excludes descendants, so start at the next sibling.
+                // For an attribute or namespace node, the owner's children come next.
                 var st = [];
-                if (xpc.contextNode.firstChild != null) {
-                    st.unshift(xpc.contextNode.firstChild);
-                } else {
-                    st.unshift(xpc.contextNode.nextSibling);
+                var start = xpc.contextNode;
+                if (start.nodeType == NodeTypes.ATTRIBUTE_NODE || start.nodeType == NodeTypes.NAMESPACE_NODE) {
+                    start = PathExpr.getOwnerElement(start);
+                    if (start == null) {
+                        break;
+                    }
+                    st.unshift(start.firstChild);
                 }
-                for (var m = xpc.contextNode.parentNode; m != null && m.nodeType != NodeTypes.DOCUMENT_NODE && m !== xpc.virtualRoot; m = m.parentNode) {
-                    st.unshift(m.nextSibling);
+                if (start === xpc.virtualRoot) {
+                    st.unshift(null);
+                } else {
+                    st.unshift(start.nextSibling);
+                    for (var m = start.parentNode; m != null && m.nodeType != NodeTypes.DOCUMENT_NODE && m !== xpc.virtualRoot; m = m.parentNode) {
+                        st.unshift(m.nextSibling);
+                    }
                 }
                 do {
                     for (var m = st.pop(); m != null;) {
@@ -2102,19 +2112,32 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 break;
 
             case Step.PRECEDING:
+                // preceding:: excludes ancestors. For an attribute or namespace
+                // node, everything before its owner element precedes it.
+                var target = xpc.contextNode;
+                if (target.nodeType == NodeTypes.ATTRIBUTE_NODE || target.nodeType == NodeTypes.NAMESPACE_NODE) {
+                    target = PathExpr.getOwnerElement(target);
+                    if (target == null) {
+                        break;
+                    }
+                }
+                var ancestors = [];
+                for (var a = target.parentNode; a != null; a = a.parentNode) {
+                    ancestors.push(a);
+                }
                 var st;
                 if (xpc.virtualRoot != null) {
                     st = [xpc.virtualRoot];
                 } else {
                     // cannot rely on .ownerDocument because the node may be in a document fragment
-                    st = [findRoot(xpc.contextNode)];
+                    st = [findRoot(target)];
                 }
                 outer: while (st.length > 0) {
                     for (var m = st.pop(); m != null;) {
-                        if (m == xpc.contextNode) {
+                        if (m == target) {
                             break outer;
                         }
-                        if (step.nodeTest.matches(m, xpc)) {
+                        if (ancestors.indexOf(m) === -1 && step.nodeTest.matches(m, xpc)) {
                             newNodes.unshift(m);
                         }
                         if (m.firstChild != null) {
