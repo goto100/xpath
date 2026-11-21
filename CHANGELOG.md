@@ -46,9 +46,8 @@ npm, so the older they are, the less detail they have.
 ### Fixed
 
 - TypeScript: `xpath.evaluate()` is typed again (its typing was dropped in
-  0.0.33, #116), and `xpath.XPathResult` is now typed as the DOM
-  `XPathResult` class, with its result-type constants such as
-  `xpath.XPathResult.STRING_TYPE` (#121).
+  0.0.33, #116), and `xpath.XPathResult` is declared as a class with its
+  result-type constants, such as `xpath.XPathResult.STRING_TYPE` (#121).
 - Parsing number literals no longer backtracks quadratically on long runs of
   digits (#151).
 

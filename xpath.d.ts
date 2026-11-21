@@ -11,9 +11,46 @@ export interface XPathSelect {
     (expression: string, node: Node, single: true): SelectSingleReturnType;
 }
 
-export function evaluate(expression: string, contextNode: Node, resolver: XPathNSResolver | null, type: number, result: globalThis.XPathResult | null): globalThis.XPathResult;
-/** The DOM `XPathResult` type constants (and prototype). Results come from `evaluate()`; it isn't constructed directly. */
-export const XPathResult: Pick<typeof globalThis.XPathResult, keyof typeof globalThis.XPathResult>;
+export function evaluate(expression: string, contextNode: Node, resolver: XPathNSResolver | null, type: number, result: XPathResult | null): XPathResult;
+
+/**
+ * The result of `evaluate()`, modeled on the DOM `XPathResult`. Only the
+ * property that matches `resultType` is set. Results come from `evaluate()`;
+ * they can't be constructed directly.
+ */
+export declare class XPathResult {
+    private constructor();
+
+    static readonly ANY_TYPE: 0;
+    static readonly NUMBER_TYPE: 1;
+    static readonly STRING_TYPE: 2;
+    static readonly BOOLEAN_TYPE: 3;
+    static readonly UNORDERED_NODE_ITERATOR_TYPE: 4;
+    static readonly ORDERED_NODE_ITERATOR_TYPE: 5;
+    static readonly UNORDERED_NODE_SNAPSHOT_TYPE: 6;
+    static readonly ORDERED_NODE_SNAPSHOT_TYPE: 7;
+    static readonly ANY_UNORDERED_NODE_TYPE: 8;
+    static readonly FIRST_ORDERED_NODE_TYPE: 9;
+
+    readonly resultType: number;
+    /** Set for NUMBER_TYPE results. */
+    readonly numberValue: number;
+    /** Set for STRING_TYPE results. */
+    readonly stringValue: string;
+    /** Set for BOOLEAN_TYPE results. */
+    readonly booleanValue: boolean;
+    /** Set for ANY_UNORDERED_NODE_TYPE and FIRST_ORDERED_NODE_TYPE results; null when nothing matched. */
+    readonly singleNodeValue: Node | null;
+    /** Set for the snapshot types. */
+    readonly snapshotLength: number;
+    /** Set for the iterator types. */
+    readonly invalidIteratorState: boolean;
+
+    /** For the iterator types: the next node, or undefined after the last one. */
+    iterateNext(): Node | undefined;
+    /** For the snapshot types: the node at `index`, or undefined when out of range. */
+    snapshotItem(index: number): Node | undefined;
+}
 
 /**
  * Evaluate an XPath expression against a DOM node.
