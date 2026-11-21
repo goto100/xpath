@@ -53,7 +53,7 @@ export function isDocumentFragment(value: SelectedValue): value is DocumentFragm
 export function parse(expression: string): XPathEvaluator;
 
 export interface XPathEvaluator {
-    evaluate(options?: XPathEvaluateOptions): XPathResult;
+    evaluate(options?: XPathEvaluateOptions): XPathEvaluationResult;
     evaluateBoolean(options?: XPathEvaluateOptions): boolean;
     evaluateNumber(options?: XPathEvaluateOptions): number;
     evaluateString(options?: XPathEvaluateOptions): string;
@@ -88,22 +88,22 @@ export type XPathFunctionResolver = XPathFunctionBasicResolver | {
 };
 export type XPathFunctionBasicResolver = (name: string, namespace: string | null) => XPathFunction | null | undefined;
 
-export type XPathFunction = (context: XPathFunctionContext, ...args: XPathResult[]) => XPathValue;
+export type XPathFunction = (context: XPathFunctionContext, ...args: XPathEvaluationResult[]) => XPathValue;
 
 export interface XPathFunctionContext {
     contextNode: Node;
 }
 
 /** Values that variables and custom functions may produce; nodes and arrays of nodes become node sets. */
-export type XPathValue = string | number | boolean | Node | Node[] | XPathResult | null | undefined;
+export type XPathValue = string | number | boolean | Node | Node[] | XPathEvaluationResult | null | undefined;
 
-export interface XPathResult {
+export interface XPathEvaluationResult {
     booleanValue(): boolean;
     numberValue(): number;
     stringValue(): string;
 }
 
-export interface XPathNodeSet extends XPathResult {
+export interface XPathNodeSet extends XPathEvaluationResult {
     readonly size: number;
     first(): Node | null;
     toArray(): Node[];
