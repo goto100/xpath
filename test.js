@@ -297,6 +297,20 @@ describe('xpath', () => {
             assert.deepEqual(evaluate('preceding::*', undefined), ['a', 'b', 'c']);
         });
 
+        it('should limit following:: from an attribute of the virtual root to its descendants', () => {
+            const evaluate = (xml, virtualRootPath) => {
+                const doc = parseXml(xml);
+                const [virtualRoot] = xpath.select(virtualRootPath, doc);
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = virtualRoot.getAttributeNode('a');
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse('following::*').evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            assert.deepEqual(evaluate('<r><v a="1"><c><d/></c><e/></v><z/></r>', '/r/v'), ['c', 'd', 'e']);
+            assert.deepEqual(evaluate('<r><v a="1"/><z/></r>', '/r/v'), []);
+        });
+
         it('should exclude every ancestor from preceding:: in a deeply nested document', () => {
             // Built with the DOM API: parsing this depth from text needs a larger stack.
             const doc = parseXml('<r><before/></r>');
