@@ -3533,6 +3533,23 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return copy
     }
 
+    var extendDeprecationWarned = false;
+
+    /**
+     * @deprecated Kept for code that calls it on an XPathContext; the library
+     * itself uses clone(). Will be removed in a future version.
+     */
+    XPathContext.prototype.extend = function (newProps) {
+        if (!extendDeprecationWarned) {
+            extendDeprecationWarned = true;
+            if (typeof console !== 'undefined' && console.warn) {
+                console.warn('xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version.');
+            }
+        }
+
+        return assign(new XPathContext(), this, newProps);
+    };
+
     // VariableResolver //////////////////////////////////////////////////////////
 
     VariableResolver.prototype = new Object();
