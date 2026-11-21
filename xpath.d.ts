@@ -12,7 +12,8 @@ export interface XPathSelect {
 }
 
 export function evaluate(expression: string, contextNode: Node, resolver: XPathNSResolver | null, type: number, result: globalThis.XPathResult | null): globalThis.XPathResult;
-export const XPathResult: typeof globalThis.XPathResult;
+/** The DOM `XPathResult` type constants (and prototype). Results come from `evaluate()`; it isn't constructed directly. */
+export const XPathResult: Pick<typeof globalThis.XPathResult, keyof typeof globalThis.XPathResult>;
 
 /**
  * Evaluate an XPath expression against a DOM node.
