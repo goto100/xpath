@@ -56,6 +56,9 @@ npm, so the older they are, the less detail they have.
 - Removed the out-of-date `package-lock.json`; the repository uses yarn
   (`yarn.lock`) for its dev dependencies (#154).
 - Added this changelog.
+- Added compile-only TypeScript tests for `xpath.d.ts` (`test-types.ts`),
+  run by `yarn test` after the mocha tests. TypeScript is now a dev
+  dependency.
 
 ## 0.0.36 (2026-10-28)
 
