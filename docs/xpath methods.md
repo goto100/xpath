@@ -15,7 +15,7 @@ Evaluates an XPath expression and returns the result. The return value is determ
 - A string if the expression evaluates to a string.
 - If the expression evaluates to a nodeset:
   - An array of 0 or more nodes if `single` is unspecified or falsy
-  - A single node (the first node in document order) or `undefined` if `single` is truthy
+  - A single node (the first node in document order) or `null` if `single` is truthy and no node is selected
   
 `node` is optional and if specified, is used as the context node for evaluating the expression. (It is necessary if the expression makes use of the current contex.)
 

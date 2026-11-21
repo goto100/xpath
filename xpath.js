@@ -109,6 +109,12 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return x === null || x === undefined;
     };
 
+    // The node at index in an array of nodes, or null when there is none ("no node" is null).
+    var nodeAt = function (nodes, index) {
+        var node = nodes[index];
+        return node === undefined ? null : node;
+    };
+
     var isPositiveInteger = function (x) {
         return typeof x === 'number' && x >= 1 && Math.floor(x) === x;
     };
@@ -4754,7 +4760,12 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             && this.resultType != XPathResult.ORDERED_NODE_ITERATOR_TYPE) {
             throw new XPathException(XPathException.TYPE_ERR);
         }
-        return this.nodes[this.iteratorIndex++];
+        // null once the nodes are used up, as the DOM specifies
+        var node = nodeAt(this.nodes, this.iteratorIndex);
+        if (node !== null) {
+            this.iteratorIndex++;
+        }
+        return node;
     };
 
     XPathResult.prototype.snapshotItem = function (i) {
@@ -4762,7 +4773,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             && this.resultType != XPathResult.ORDERED_NODE_SNAPSHOT_TYPE) {
             throw new XPathException(XPathException.TYPE_ERR);
         }
-        return this.nodes[i];
+        // null when there's no node at that index, as the DOM specifies
+        return nodeAt(this.nodes, i);
     };
 
     XPathResult.ANY_TYPE = 0;
@@ -5022,7 +5034,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             }
 
             , select1: function (options) {
-                return this.select(options)[0];
+                return nodeAt(this.select(options), 0);
             }
         };
 
@@ -5124,7 +5136,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         else {
             result = result.nodes;
             if (single) {
-                result = result[0];
+                // null, not undefined, when nothing matched
+                result = nodeAt(result, 0);
             }
         }
 

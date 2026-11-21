@@ -13,14 +13,17 @@ const single: xpath.SelectSingleReturnType = xpath.select('//a', doc, true);
 const first: xpath.SelectSingleReturnType = xpath.select1('//a', doc);
 // select() gives nodes or a scalar: never a single node, never null
 const manyExact: Node[] | xpath.ScalarValue = xpath.select('//a', doc);
-// select1() gives a node, a scalar, or undefined when nothing matched: never null
-const firstExact: Node | xpath.ScalarValue | undefined = xpath.select1('//a', doc);
-// @ts-expect-error select1() can return undefined
-const firstDefined: Node | xpath.ScalarValue = xpath.select1('//a', doc);
+// select1() gives a node, a scalar, or null when nothing matched: never undefined
+const firstExact: Node | xpath.ScalarValue | null = xpath.select1('//a', doc);
+// @ts-expect-error select1() can return null
+const firstNonNull: Node | xpath.ScalarValue = xpath.select1('//a', doc);
+// @ts-expect-error select1() can return null, not undefined
+const firstUndefined: Node | xpath.ScalarValue | undefined = xpath.select1('//a', doc);
 // @ts-expect-error a single result isn't an array
 const notAnArray: Node[] = xpath.select('//a', doc, true);
-// SelectedValue is deprecated but still exported
+// SelectedValue is deprecated but still exported, and select1() results fit it
 const legacyValue: xpath.SelectedValue = null;
+const legacyFirst: xpath.SelectedValue = xpath.select1('//a', doc);
 // @ts-expect-error the expression is a string
 xpath.select(1, doc);
 
@@ -41,8 +44,12 @@ const evaluated: xpath.XPathResult = xpath.evaluate('string(//a)', doc, null, xp
 const evaluatedString: string = evaluated.stringValue;
 const evaluatedType: number = evaluated.resultType;
 const singleNode: Node | null = evaluated.singleNodeValue;
-const nextNode: Node | undefined = evaluated.iterateNext();
-const snapshotNode: Node | undefined = evaluated.snapshotItem(0);
+const nextNode: Node | null = evaluated.iterateNext();
+const snapshotNode: Node | null = evaluated.snapshotItem(0);
+// @ts-expect-error iterateNext() can return null
+const nextNonNull: Node = evaluated.iterateNext();
+// @ts-expect-error snapshotItem() returns null, not undefined, when there's no node
+const snapshotUndefined: Node | undefined = evaluated.snapshotItem(0);
 const snapshotLength: number = evaluated.snapshotLength;
 const reused: xpath.XPathResult = xpath.evaluate('//a', doc, nsResolver, xpath.XPathResult.ANY_TYPE, evaluated);
 const stringType: 2 = xpath.XPathResult.STRING_TYPE;
@@ -126,7 +133,9 @@ const asBoolean: boolean = evaluator.evaluateBoolean(options);
 const asNumber: number = evaluator.evaluateNumber(options);
 const asString: string = evaluator.evaluateString(options);
 const selectedNodes: Node[] = evaluator.select({ node: doc });
-const selectedNode: Node | undefined = evaluator.select1();
+const selectedNode: Node | null = evaluator.select1();
+// @ts-expect-error select1() can return null
+const selectedNonNull: Node = evaluator.select1();
 // @ts-expect-error not an option
 evaluator.evaluate({ nodes: doc });
 
