@@ -1,9 +1,15 @@
 /// <reference lib="dom" />
 
-export type SelectedValue = Node | string | number | boolean | null;
+/** The value of an XPath expression that doesn't select nodes. */
+export type ScalarValue = string | number | boolean;
 
-export type SelectReturnType = Array<Node> | SelectedValue;
-export type SelectSingleReturnType = SelectedValue;
+/** What `select()` returns: the selected nodes, or the expression's value if it isn't a node set. */
+export type SelectReturnType = Array<Node> | ScalarValue;
+/** What `select1()` and `select(..., true)` return: the first selected node (undefined if none), or the expression's value. */
+export type SelectSingleReturnType = ScalarValue | Node | undefined;
+
+/** @deprecated Use `SelectReturnType`, `SelectSingleReturnType` or `ScalarValue`. */
+export type SelectedValue = Node | string | number | boolean | null;
 
 export interface XPathSelect {
     (expression: string, node: Node): SelectReturnType;
@@ -78,18 +84,19 @@ export function selectWithResolver(expression: string, node: Node, resolver: XPa
  */
 export function useNamespaces(namespaceMap: Record<string, string>): XPathSelect;
 
-// Type guards to narrow down the type of the selected type of a returned Node object
-export function isNodeLike(value: SelectedValue): value is Node;
-export function isArrayOfNodes(value: SelectReturnType): value is Node[];
-export function isElement(value: SelectedValue): value is Element;
-export function isAttribute(value: SelectedValue): value is Attr;
-export function isTextNode(value: SelectedValue): value is Text;
-export function isCDATASection(value: SelectedValue): value is CDATASection;
-export function isProcessingInstruction(value: SelectedValue): value is ProcessingInstruction;
-export function isComment(value: SelectedValue): value is Comment;
-export function isDocumentNode(value: SelectedValue): value is Document;
-export function isDocumentTypeNode(value: SelectedValue): value is DocumentType;
-export function isDocumentFragment(value: SelectedValue): value is DocumentFragment;
+// Type guards that narrow a value to a node type. Each accepts any value: a select() or
+// select1() result, a DOM property such as parentNode, null or undefined.
+export function isNodeLike(value: unknown): value is Node;
+export function isArrayOfNodes(value: unknown): value is Node[];
+export function isElement(value: unknown): value is Element;
+export function isAttribute(value: unknown): value is Attr;
+export function isTextNode(value: unknown): value is Text;
+export function isCDATASection(value: unknown): value is CDATASection;
+export function isProcessingInstruction(value: unknown): value is ProcessingInstruction;
+export function isComment(value: unknown): value is Comment;
+export function isDocumentNode(value: unknown): value is Document;
+export function isDocumentTypeNode(value: unknown): value is DocumentType;
+export function isDocumentFragment(value: unknown): value is DocumentFragment;
 
 export function parse(expression: string): XPathEvaluator;
 

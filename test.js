@@ -1602,6 +1602,15 @@ describe('xpath', () => {
             assert.ok(!xpath.isNodeLike(undefined));
         });
 
+        it('should return false, not the value, for falsy values', () => {
+            for (const value of [null, undefined, 0, '', NaN]) {
+                assert.strictEqual(xpath.isNodeLike(value), false, `isNodeLike(${value})`);
+                assert.strictEqual(xpath.isElement(value), false, `isElement(${value})`);
+                assert.strictEqual(xpath.isAttribute(value), false, `isAttribute(${value})`);
+                assert.strictEqual(xpath.isArrayOfNodes(value), false, `isArrayOfNodes(${value})`);
+            }
+        });
+
         it('should not identify an array as a Node', () => {
             assert.ok(!xpath.isNodeLike([]));
         });
