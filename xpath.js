@@ -122,7 +122,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     };
 
     var isNodeLike = function (value) {
-        return value
+        // !!value: return false, not the value itself, for null, undefined, 0, '' and NaN.
+        return !!value
             && isValidNodeType(value.nodeType)
             && typeof value.nodeName === "string";
     };
@@ -1275,7 +1276,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         if (!s) {
             throw new Error('XPath expression unspecified.');
         }
-        if (typeof s !== 'string'){
+        if (typeof s !== 'string') {
             throw new Error('XPath expression must be a string.');
         }
 
@@ -1316,9 +1317,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                     var rhs = [];
                     for (var i = 0; i < num; i++) {
                         tokenType.pop();
-                        rhs.unshift(tokenValue.pop());
+                        rhs.push(tokenValue.pop());
                         state.pop();
                     }
+                    rhs.reverse();
                     var s_ = state[state.length - 1];
                     tokenType.push(XPathParser.productions[XPathParser.actionTableNumber[s].charCodeAt(a - 1) - 32][0]);
                     if (this.reduceActions[XPathParser.actionTableNumber[s].charCodeAt(a - 1) - 32] == undefined) {
@@ -1847,7 +1849,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             return nodes;
         }
 
-        var ctx = c.extend({});
+        var ctx = c.clone();
 
         return reduce(
             function (inNodes, pred) {
@@ -1911,6 +1913,132 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         }
 
         return null;
+    };
+
+    var applyFollowingStep = function (step, xpc) {
+        var newNodes = [];
+
+        if (xpc.contextNode === xpc.virtualRoot) {
+            return newNodes;
+        }
+        // following:: is everything after the context node in document order,
+        // except its descendants. For an attribute or namespace node, that
+        // starts with its owner element's children.
+        //
+        // toVisit is a stack of places to resume the walk: each entry is a node
+        // to visit along with its following siblings and all their descendants.
+        // The walk below pops from the end, so the entries are added to the
+        // front (unshift) in the order they must be visited, nearest first.
+        var toVisit = [];
+        var start = xpc.contextNode;
+        if (start.nodeType == NodeTypes.ATTRIBUTE_NODE || start.nodeType == NodeTypes.NAMESPACE_NODE) {
+            start = PathExpr.getOwnerElement(start);
+            if (start == null) {
+                return newNodes;
+            }
+            // The owner element's children come first: they follow its attributes.
+            toVisit.unshift(start.firstChild);
+        }
+        // When start is the virtual root (the context node is one of its attributes
+        // or namespace nodes), its children are all that's in scope, and they're
+        // already on the stack.
+        if (start !== xpc.virtualRoot) {
+            // Next come start's following siblings (with their descendants)...
+            toVisit.unshift(start.nextSibling);
+            // ...then each ancestor's following siblings, from the parent outward,
+            // stopping at the document or the virtual root. Each one ends up below
+            // the previous one on the stack, so it's visited after it.
+            for (var ancestor = start.parentNode; ancestor != null && ancestor.nodeType != NodeTypes.DOCUMENT_NODE && ancestor !== xpc.virtualRoot; ancestor = ancestor.parentNode) {
+                toVisit.unshift(ancestor.nextSibling);
+            }
+        }
+        // Walk in document order: take the next entry, visit it and its
+        // following siblings, and before going down into a node's children,
+        // push its next sibling so the walk comes back to it afterwards.
+        // An entry can be null (no next sibling there); popping one ends that
+        // run at once, as does popping from an empty stack.
+        do {
+            for (var current = toVisit.pop(); current != null;) {
+                if (step.nodeTest.matches(current, xpc)) {
+                    newNodes.push(current);
+                }
+                if (current.firstChild != null) {
+                    toVisit.push(current.nextSibling);
+                    current = current.firstChild;
+                } else {
+                    current = current.nextSibling;
+                }
+            }
+        } while (toVisit.length > 0);
+        return newNodes;
+    };
+
+    var applyPrecedingStep = function (step, xpc) {
+        var newNodes = [];
+
+        // preceding:: excludes ancestors. For an attribute or namespace
+        // node, everything before its owner element precedes it.
+        var target = xpc.contextNode;
+        if (target.nodeType == NodeTypes.ATTRIBUTE_NODE || target.nodeType == NodeTypes.NAMESPACE_NODE) {
+            target = PathExpr.getOwnerElement(target);
+            if (target == null) {
+                return newNodes;
+            }
+        }
+        // The target's ancestors, in reverse document order: its parent first,
+        // the root last.
+        var ancestors = [];
+        for (var ancestor = target.parentNode; ancestor != null; ancestor = ancestor.parentNode) {
+            ancestors.push(ancestor);
+        }
+        // The walk below visits the ancestors in document order (root first), so
+        // it meets them from the end of this list backwards. nextAncestorIndex is
+        // the index in ancestors of the next ancestor the walk will reach: it
+        // starts at the root (the last entry) and counts down as the walk passes
+        // each one, so ancestors are skipped without searching the list. With a
+        // virtual root, the walk starts there, so start at the virtual root's
+        // entry instead: the ancestors above it are never visited.
+        var nextAncestorIndex = ancestors.length - 1;
+        if (xpc.virtualRoot != null) {
+            while (nextAncestorIndex >= 0 && ancestors[nextAncestorIndex] !== xpc.virtualRoot) {
+                nextAncestorIndex -= 1;
+            }
+        }
+        // toVisit is a stack of places to resume the walk, as in following::.
+        var toVisit;
+        if (xpc.virtualRoot != null) {
+            toVisit = [xpc.virtualRoot];
+        } else {
+            // cannot rely on .ownerDocument because the node may be in a document fragment
+            toVisit = [findRoot(target)];
+        }
+        // Walk the tree in document order from the root, and stop on reaching the
+        // target (break outer). Everything the walk visits before that comes
+        // before the target in document order: the target's ancestors, which are
+        // skipped, and the preceding nodes. Each preceding node that matches is
+        // added to the front of newNodes, which leaves them in reverse document
+        // order (applyPredicates sorts a reverse axis's nodes that way itself).
+        // As in following::, before going down into a node's children the walk
+        // pushes its next sibling to come back to.
+        outer: while (toVisit.length > 0) {
+            for (var current = toVisit.pop(); current != null;) {
+                if (current == target) {
+                    break outer;
+                }
+                if (nextAncestorIndex >= 0 && current === ancestors[nextAncestorIndex]) {
+                    nextAncestorIndex -= 1;
+                } else if (step.nodeTest.matches(current, xpc)) {
+                    newNodes.unshift(current);
+                }
+                if (current.firstChild != null) {
+                    toVisit.push(current.nextSibling);
+                    current = current.firstChild;
+                } else {
+                    current = current.nextSibling;
+                }
+            }
+        }
+        return newNodes;
     };
 
     PathExpr.applyStep = function (step, xpc, node) {
@@ -2019,32 +2147,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 break;
 
             case Step.FOLLOWING:
-                if (xpc.contextNode === xpc.virtualRoot) {
-                    break;
-                }
-                var st = [];
-                if (xpc.contextNode.firstChild != null) {
-                    st.unshift(xpc.contextNode.firstChild);
-                } else {
-                    st.unshift(xpc.contextNode.nextSibling);
-                }
-                for (var m = xpc.contextNode.parentNode; m != null && m.nodeType != NodeTypes.DOCUMENT_NODE && m !== xpc.virtualRoot; m = m.parentNode) {
-                    st.unshift(m.nextSibling);
-                }
-                do {
-                    for (var m = st.pop(); m != null;) {
-                        if (step.nodeTest.matches(m, xpc)) {
-                            newNodes.push(m);
-                        }
-                        if (m.firstChild != null) {
-                            st.push(m.nextSibling);
-                            m = m.firstChild;
-                        } else {
-                            m = m.nextSibling;
-                        }
-                    }
-                } while (st.length > 0);
-                break;
+                return applyFollowingStep(step, xpc);
 
             case Step.FOLLOWINGSIBLING:
                 if (xpc.contextNode === xpc.virtualRoot) {
@@ -2102,30 +2205,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 break;
 
             case Step.PRECEDING:
-                var st;
-                if (xpc.virtualRoot != null) {
-                    st = [xpc.virtualRoot];
-                } else {
-                    // cannot rely on .ownerDocument because the node may be in a document fragment
-                    st = [findRoot(xpc.contextNode)];
-                }
-                outer: while (st.length > 0) {
-                    for (var m = st.pop(); m != null;) {
-                        if (m == xpc.contextNode) {
-                            break outer;
-                        }
-                        if (step.nodeTest.matches(m, xpc)) {
-                            newNodes.unshift(m);
-                        }
-                        if (m.firstChild != null) {
-                            st.push(m.nextSibling);
-                            m = m.firstChild;
-                        } else {
-                            m = m.nextSibling;
-                        }
-                    }
-                }
-                break;
+                return applyPrecedingStep(step, xpc);
 
             case Step.PRECEDINGSIBLING:
                 if (xpc.contextNode === xpc.virtualRoot) {
@@ -2212,7 +2292,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     };
 
     PathExpr.prototype.evaluate = function (c) {
-        var xpc = assign(new XPathContext(), c);
+        var xpc = c.clone();
 
         var filterResult = this.applyFilter(c, xpc);
 
@@ -2779,7 +2859,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         this.num = typeof n === "string" ? this.parse(n) : Number(n);
     };
 
-    XNumber.prototype.numberFormat = /^\s*-?[0-9]*\.?[0-9]+\s*$/;
+    // Factored so the integer and fractional forms no longer overlap: the old
+    // /[0-9]*\.?[0-9]+/ could split a digit run at any point, backtracking in
+    // O(n^2) on a long run followed by a non-digit. Same accepted language.
+    XNumber.prototype.numberFormat = /^\s*-?(?:[0-9]+|[0-9]*\.[0-9]+)\s*$/;
 
     XNumber.prototype.parse = function (s) {
         // XPath representation of numbers is more restrictive than what Number() or parseFloat() allow
@@ -3534,7 +3617,33 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         this.functionResolver = fr != null ? fr : new FunctionResolver();
     }
 
+    XPathContext.prototype.clone = function () {
+        var copy = new XPathContext(this.variableResolver, this.namespaceResolver, this.functionResolver);
+        copy.expressionContextNode =  this.expressionContextNode;
+        copy.virtualRoot = this.virtualRoot;
+        copy.caseInsensitive = this.caseInsensitive;
+        copy.contextNode = this.contextNode;
+        copy.contextSize = this.contextSize;
+        copy.contextPosition = this.contextPosition;
+        copy.isHtml = this.isHtml;
+        copy.allowAnyNamespaceForNoPrefix = this.allowAnyNamespaceForNoPrefix;
+        return copy
+    }
+
+    var extendDeprecationWarned = false;
+
+    /**
+     * @deprecated Kept for code that calls it on an XPathContext; the library
+     * itself uses clone(). Will be removed in a future version.
+     */
     XPathContext.prototype.extend = function (newProps) {
+        if (!extendDeprecationWarned) {
+            extendDeprecationWarned = true;
+            if (typeof console !== 'undefined' && console.warn) {
+                console.warn('xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.');
+            }
+        }
+
         return assign(new XPathContext(), this, newProps);
     };
 

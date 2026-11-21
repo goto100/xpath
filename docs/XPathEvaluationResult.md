@@ -1,4 +1,4 @@
-# XPathResult interface
+# XPathEvaluationResult interface
 
 Represents the result of an XPath expression. This interface is used for the parameters passed into custom functions 
 used in [function resolvers](function resolvers.md) and can represent a number, a string, a boolean value, or a node set.
@@ -23,7 +23,7 @@ stringValue() -> string
 
 Returns the string value of the result in accordance with the XPath 1.0 spec.
 
-## Methods and properties that are only present on `XPathResult`s representing node sets
+## Methods and properties that are only present on `XPathEvaluationResult`s representing node sets
 
 ```js
 toArray() -> Array of nodes

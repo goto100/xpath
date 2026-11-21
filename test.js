@@ -255,6 +255,75 @@ describe('xpath', () => {
             assert.strictEqual(xpath.select("count(preceding::chapter)", chapter), 4);
         });
 
+        it('should exclude descendants from following::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/t/following::node()', '<r><t>x</t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/t/following::*', '<r><t><y/></t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/following::*', '<r><t/><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/a/t/following::*', xml), ['b', 'c', 'd', 't', 'e']);
+            assert.deepEqual(names('/r/a/t/@q/following::*', xml), ['k', 'b', 'c', 'd', 't', 'e']);
+            assert.strictEqual(xpath.select('count(//*/following::*)', parseXml(xml)), 5);
+        });
+
+        it('should exclude ancestors from preceding::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/a/t/preceding::*', '<r><a><t/><b/></a><c><d/></c><t/><e/></r>'), []);
+            assert.deepEqual(names('/r/t/preceding::node()', '<r><t>x</t><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/c/d/preceding::*', xml), ['a', 't', 'k', 'b']);
+            assert.deepEqual(names('/r/e/preceding::*', xml), ['a', 't', 'k', 'b', 'c', 'd', 't']);
+            assert.deepEqual(names('/r/c/d/preceding::*[1]', xml), ['b']);
+            assert.deepEqual(names('/r/c/@x/preceding::*', '<r><a><b/></a><c x="1"><d/></c></r>'), ['a', 'b']);
+        });
+
+        it('should exclude ancestors from preceding:: within a virtual root', () => {
+            const doc = parseXml('<r><a><b/></a><v><c/><w><t/></w></v></r>');
+            const [v] = xpath.select('/r/v', doc);
+            const [t] = xpath.select('//t', doc);
+            const evaluate = (expr, virtualRoot) => {
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = t;
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse(expr).evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            // The walk starts at the virtual root, below some of the context node's ancestors.
+            assert.deepEqual(evaluate('preceding::*', v), ['c']);
+            assert.deepEqual(evaluate('preceding::*', undefined), ['a', 'b', 'c']);
+        });
+
+        it('should limit following:: from an attribute of the virtual root to its descendants', () => {
+            const evaluate = (xml, virtualRootPath) => {
+                const doc = parseXml(xml);
+                const [virtualRoot] = xpath.select(virtualRootPath, doc);
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = virtualRoot.getAttributeNode('a');
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse('following::*').evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            assert.deepEqual(evaluate('<r><v a="1"><c><d/></c><e/></v><z/></r>', '/r/v'), ['c', 'd', 'e']);
+            assert.deepEqual(evaluate('<r><v a="1"/><z/></r>', '/r/v'), []);
+        });
+
+        it('should exclude every ancestor from preceding:: in a deeply nested document', () => {
+            // Built with the DOM API: parsing this depth from text needs a larger stack.
+            const doc = parseXml('<r><before/></r>');
+            let node = doc.documentElement;
+            for (let i = 0; i < 5000; i += 1) {
+                node = node.appendChild(doc.createElement('e'));
+            }
+            const leaf = node.appendChild(doc.createElement('leaf'));
+
+            assert.deepEqual(xpath.select('preceding::*', leaf).map(n => n.nodeName), ['before']);
+            assert.strictEqual(xpath.select('count(ancestor::*)', leaf), 5001);
+        });
+
         it('should allow getting sorted and unsorted arrays from nodesets', () => {
             const doc = parseXml('<book><character>Harry</character><character>Ron</character><character>Hermione</character></book>');
             const path = xpath.parse("/*/*[3] | /*/*[2] | /*/*[1]");
@@ -642,6 +711,13 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select1('number(/r/empty)', doc)), 'number(/r/empty)');
             assert.ok(Number.isNaN(xpath.select1('number(/r/inf)', doc)), 'number(/r/inf)');
             assert.ok(Number.isNaN(xpath.select1('/r/hex + 0', doc)), '/r/hex + 0');
+        });
+
+        it('should reject a long invalid numeric string in linear time', () => {
+            // Regression guard for O(n^2) backtracking in numberFormat: before the
+            // fix this blocked for seconds and would exceed the test timeout.
+            var longInvalid = new Array(100001).join('1') + 'x';
+            assert.ok(Number.isNaN(xpath.select('number("' + longInvalid + '")')), 'long invalid number is NaN');
         });
 
         it('should convert numbers to strings correctly', () => {
@@ -1392,6 +1468,38 @@ describe('xpath', () => {
 
             assert.strictEqual(xpath.select1('local-name(/book/characters)', doc), 'characters');
         });
+
+        it('should keep the deprecated XPathContext.prototype.extend(), warning only on the first call', () => {
+            var original = new xpath.XPathContext();
+            original.contextNode = parseXml('<a />');
+            original.caseInsensitive = true;
+            original.custom = 'kept';
+
+            var warnings = [];
+            var originalWarn = console.warn;
+            console.warn = (message) => warnings.push(message);
+
+            try {
+                var extended = original.extend({ caseInsensitive: false, extra: 42 });
+                var extendedAgain = original.extend({});
+
+                assert.ok(extended instanceof xpath.XPathContext, 'returns an XPathContext');
+                assert.notStrictEqual(extended, original, 'returns a new context');
+                assert.strictEqual(extended.contextNode, original.contextNode, 'copies existing properties');
+                assert.strictEqual(extended.namespaceResolver, original.namespaceResolver, 'copies the resolvers');
+                assert.strictEqual(extended.custom, 'kept', 'copies custom properties');
+                assert.strictEqual(extended.caseInsensitive, false, 'newProps override copied properties');
+                assert.strictEqual(extended.extra, 42, 'adds new properties');
+                assert.strictEqual(original.caseInsensitive, true, 'leaves the original unchanged');
+                assert.strictEqual(extendedAgain.caseInsensitive, true);
+
+                assert.deepEqual(warnings, [
+                    'xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.',
+                ]);
+            } finally {
+                console.warn = originalWarn;
+            }
+        });
     });
 
     describe('error handling', () => {
@@ -1551,6 +1659,15 @@ describe('xpath', () => {
 
         it('should not identify undefined as a Node', () => {
             assert.ok(!xpath.isNodeLike(undefined));
+        });
+
+        it('should return false, not the value, for falsy values', () => {
+            for (const value of [null, undefined, 0, '', NaN]) {
+                assert.strictEqual(xpath.isNodeLike(value), false, `isNodeLike(${value})`);
+                assert.strictEqual(xpath.isElement(value), false, `isElement(${value})`);
+                assert.strictEqual(xpath.isAttribute(value), false, `isAttribute(${value})`);
+                assert.strictEqual(xpath.isArrayOfNodes(value), false, `isArrayOfNodes(${value})`);
+            }
         });
 
         it('should not identify an array as a Node', () => {
