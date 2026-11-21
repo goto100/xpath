@@ -1395,6 +1395,38 @@ describe('xpath', () => {
 
             assert.strictEqual(xpath.select1('local-name(/book/characters)', doc), 'characters');
         });
+
+        it('should keep the deprecated XPathContext.prototype.extend(), warning only on the first call', () => {
+            var original = new xpath.XPathContext();
+            original.contextNode = parseXml('<a />');
+            original.caseInsensitive = true;
+            original.custom = 'kept';
+
+            var warnings = [];
+            var originalWarn = console.warn;
+            console.warn = (message) => warnings.push(message);
+
+            try {
+                var extended = original.extend({ caseInsensitive: false, extra: 42 });
+                var extendedAgain = original.extend({});
+
+                assert.ok(extended instanceof xpath.XPathContext, 'returns an XPathContext');
+                assert.notStrictEqual(extended, original, 'returns a new context');
+                assert.strictEqual(extended.contextNode, original.contextNode, 'copies existing properties');
+                assert.strictEqual(extended.namespaceResolver, original.namespaceResolver, 'copies the resolvers');
+                assert.strictEqual(extended.custom, 'kept', 'copies custom properties');
+                assert.strictEqual(extended.caseInsensitive, false, 'newProps override copied properties');
+                assert.strictEqual(extended.extra, 42, 'adds new properties');
+                assert.strictEqual(original.caseInsensitive, true, 'leaves the original unchanged');
+                assert.strictEqual(extendedAgain.caseInsensitive, true);
+
+                assert.deepEqual(warnings, [
+                    'xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.',
+                ]);
+            } finally {
+                console.warn = originalWarn;
+            }
+        });
     });
 
     describe('error handling', () => {
