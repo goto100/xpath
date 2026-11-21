@@ -33,6 +33,10 @@ npm, so the older they are, the less detail they have.
 - Behavior change: custom properties set on an `XPathContext` are no longer
   copied to the contexts that location paths and predicates are evaluated
   with. Only the library's own context fields are (#146).
+- Faster parsing of long expressions: the parser builds each reduction's
+  operands with `push()` and one `reverse()` instead of `unshift()` (#120).
+  Parsing a 3,000-term union and a 3,000-term sum took about a quarter less
+  time.
 
 ### Deprecated
 
