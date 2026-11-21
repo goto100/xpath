@@ -62,6 +62,42 @@ describe('xpath', () => {
     });
 
     describe('.select()', () => {
+        it('should return null, not undefined, when no node is selected', () => {
+            const doc = parseXml('<r><a/></r>');
+            const [a] = xpath.select('/r/a', doc);
+
+            assert.strictEqual(xpath.select1('/r/nothing', doc), null);
+            assert.strictEqual(xpath.select('/r/nothing', doc, true), null);
+            assert.strictEqual(xpath.selectWithResolver('/r/nothing', doc, null, true), null);
+            assert.strictEqual(xpath.useNamespaces({ x: 'urn:x' })('/r/x:nothing', doc, true), null);
+            assert.strictEqual(xpath.parse('/r/nothing').select1({ node: doc }), null);
+
+            // a match, and scalar results, are unchanged
+            assert.strictEqual(xpath.select1('/r/a', doc), a);
+            assert.strictEqual(xpath.parse('/r/a').select1({ node: doc }), a);
+            assert.strictEqual(xpath.select1('count(/r/nothing)', doc), 0);
+            assert.strictEqual(xpath.select('string(/r/nothing)', doc, true), '');
+        });
+
+        it('should return null from iterateNext() and snapshotItem() when there is no node, as the DOM does', () => {
+            const doc = parseXml('<r><a/></r>');
+            const [a] = xpath.select('/r/a', doc);
+
+            const iterator = xpath.evaluate('/r/a', doc, null, xpath.XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+            assert.strictEqual(iterator.iterateNext(), a);
+            assert.strictEqual(iterator.iterateNext(), null);
+            assert.strictEqual(iterator.iterateNext(), null);
+
+            const snapshot = xpath.evaluate('/r/a', doc, null, xpath.XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+            assert.strictEqual(snapshot.snapshotItem(0), a);
+            assert.strictEqual(snapshot.snapshotItem(1), null);
+            assert.strictEqual(snapshot.snapshotItem(-1), null);
+
+            // the type checks still apply
+            assert.throws(() => snapshot.iterateNext());
+            assert.throws(() => iterator.snapshotItem(0));
+        });
+
         it('should select single nodes', () => {
             var xml = '<book><title>Harry Potter</title></book>';
             var doc = parseXml(xml);

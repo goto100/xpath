@@ -6,6 +6,25 @@ npm, so the older they are, the less detail they have.
 
 ## 0.1.0 (unreleased)
 
+### Breaking changes
+
+- "No node" is now always `null` (#140). These used to return `undefined`
+  when there was no node to return:
+  - `select1()`, `select(..., true)`, `selectWithResolver(..., true)`, the
+    functions `useNamespaces()` returns (with `single`), and
+    `parse(...).select1()`, when nothing matched. Scalar results are
+    unchanged.
+  - `iterateNext()` on an iterator result from `evaluate()`, after the last
+    node, and `snapshotItem()` on a snapshot result, when there is no node at
+    that index, as the DOM specifies.
+
+  This matches `singleNodeValue` and `XNodeSet`'s `first()`, which already
+  returned `null`. To migrate, change checks for `=== undefined` to
+  `=== null`; checks with `== null`, and truthiness checks, work either way.
+  The TypeScript types say `null` too: `SelectSingleReturnType`,
+  `XPathEvaluator.select1()`, and `XPathResult`'s `iterateNext()` and
+  `snapshotItem()`.
+
 ### Breaking changes (TypeScript only)
 
 - The TypeScript interface `XPathResult` in `xpath.d.ts` is renamed to
@@ -29,14 +48,13 @@ npm, so the older they are, the less detail they have.
   - `select()` (`SelectReturnType`) returns an array of nodes or a string,
     number or boolean. It never returns a single node or `null`.
   - `select1()` and `select(..., true)` (`SelectSingleReturnType`) return a
-    node, a string, number or boolean, or `undefined` when nothing matched.
-    They never return `null`.
+    node, a string, number or boolean, or `null` when nothing matched (see
+    the breaking change above: this used to be `undefined`).
 
-  Code that assigns `select1()`'s result to a type without `undefined` (such
-  as `SelectedValue`) no longer compiles. A check for `null` still compiles
-  but never matched at runtime: check for `undefined` instead. The new
-  `ScalarValue` type is the string, number or boolean case. `SelectedValue`
-  is deprecated but still exported, with its previous meaning.
+  Code that assigns `select1()`'s result to a type without `null` no longer
+  compiles. The new `ScalarValue` type is the string, number or boolean
+  case. `SelectedValue` is deprecated but still exported, with its previous
+  meaning, and `select1()`'s result can be assigned to it.
 
   The type guards (`isNodeLike()`, `isArrayOfNodes()`, `isElement()` and
   the other `is…()` functions) now accept any value, including `null`,
