@@ -101,6 +101,32 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
 (function (exports) {
     "use strict";
 
+    // namespace nodes are not part of the DOM spec, so we use a custom nodetype for them.
+    // should NOT be used externally
+    var NAMESPACE_NODE_NODETYPE = '__namespace';
+
+    var isNil = function (x) {
+        return x === null || x === undefined;
+    };
+
+    var isPositiveInteger = function (x) {
+        return typeof x === 'number' && x >= 1 && Math.floor(x) === x;
+    };
+
+    var isValidNodeType = function (nodeType) {
+        return nodeType === NAMESPACE_NODE_NODETYPE ||
+            (Number.isInteger(nodeType)
+                && nodeType >= 1
+                && nodeType <= 11
+            );
+    };
+
+    var isNodeLike = function (value) {
+        return value
+            && isValidNodeType(value.nodeType)
+            && typeof value.nodeName === "string";
+    };
+
     // functional helpers
     function curry(func) {
         var slice = Array.prototype.slice,
@@ -167,6 +193,16 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
 
     var prototypeConcat = Array.prototype.concat;
 
+    var sortNodes = function (nodes, reverse) {
+        var ns = new XNodeSet();
+
+        ns.addArray(nodes);
+
+        var sorted = ns.toArray();
+
+        return reverse ? sorted.reverse() : sorted;
+    }
+
     // .apply() fails above a certain number of arguments - https://github.com/goto100/xpath/pull/98
     var MAX_ARGUMENT_LENGTH = 32767;
 
@@ -175,10 +211,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
 
         for (var start = 0; start < arr.length; start += MAX_ARGUMENT_LENGTH) {
             var chunk = arr.slice(start, start + MAX_ARGUMENT_LENGTH);
-            
+
             result = prototypeConcat.apply(result, chunk);
         }
-        
+
         return result;
     }
 
@@ -211,6 +247,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         DOCUMENT_NODE: 9,
         DOCUMENT_TYPE_NODE: 10,
         DOCUMENT_FRAGMENT_NODE: 11,
+        NAMESPACE_NODE: NAMESPACE_NODE_NODETYPE,
     };
 
     // XPathParser ///////////////////////////////////////////////////////////////
@@ -1235,6 +1272,13 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     XPathParser.ACCEPT = 'a';
 
     XPathParser.prototype.parse = function (s) {
+        if (!s) {
+            throw new Error('XPath expression unspecified.');
+        }
+        if (typeof s !== 'string'){
+            throw new Error('XPath expression must be a string.');
+        }
+
         var types;
         var values;
         var res = this.tokenize(s);
@@ -1313,9 +1357,24 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     }
 
     XPath.prototype.evaluate = function (c) {
+        var node = c.expressionContextNode;
+
+        if (!(isNil(node) || isNodeLike(node))) {
+            throw new Error("Context node does not appear to be a valid DOM node.");
+        }
+
+        // The context position and size are supplied by the host (e.g. an XSLT processor
+        // evaluating inside xsl:for-each), and default to 1.
+        var size = isNil(c.expressionContextSize) ? 1 : c.expressionContextSize;
+        var position = isNil(c.expressionContextPosition) ? 1 : c.expressionContextPosition;
+
+        if (!isPositiveInteger(size) || !isPositiveInteger(position) || position > size) {
+            throw new Error("Context position and size must be positive integers, with position no greater than size.");
+        }
+
         c.contextNode = c.expressionContextNode;
-        c.contextSize = 1;
-        c.contextPosition = 1;
+        c.contextSize = size;
+        c.contextPosition = position;
 
         // [2017-11-25] Removed usage of .implementation.hasFeature() since it does
         //              not reliably detect HTML DOMs (always returns false in xmldom and true in browsers)
@@ -1783,12 +1842,12 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return node;
     }
 
-    PathExpr.applyPredicates = function (predicates, c, nodes) {
+    var applyPredicates = function (predicates, c, nodes, reverse) {
         if (predicates.length === 0) {
             return nodes;
         }
 
-        var ctx = c.extend({});
+        var ctx = c.clone();
 
         return reduce(
             function (inNodes, pred) {
@@ -1804,7 +1863,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                     inNodes
                 );
             },
-            nodes,
+            sortNodes(nodes, reverse),
             predicates
         );
     };
@@ -1812,12 +1871,18 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     PathExpr.getRoot = function (xpc, nodes) {
         var firstNode = nodes[0];
 
-        if (firstNode.nodeType === NodeTypes.DOCUMENT_NODE) {
+        // xpc.virtualRoot could possibly provide a root even if firstNode is null,
+        // so using a guard here instead of throwing.
+        if (firstNode && firstNode.nodeType === NodeTypes.DOCUMENT_NODE) {
             return firstNode;
         }
 
         if (xpc.virtualRoot) {
             return xpc.virtualRoot;
+        }
+
+        if (!firstNode) {
+            throw new Error('Context node not found when determining document root.');
         }
 
         var ownerDoc = firstNode.ownerDocument;
@@ -1834,8 +1899,25 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return n;
     }
 
+    var getPrefixForNamespaceNode = function (attrNode) {
+        var nm = String(attrNode.name);
+
+        if (nm === "xmlns") {
+            return "";
+        }
+
+        if (nm.substring(0, 6) === "xmlns:") {
+            return nm.substring(6, nm.length);
+        }
+
+        return null;
+    };
+
     PathExpr.applyStep = function (step, xpc, node) {
-        var self = this;
+        if (!node) {
+            throw new Error('Context node not found when evaluating XPath step: ' + step);
+        }
+
         var newNodes = [];
         xpc.contextNode = node;
 
@@ -1976,30 +2058,30 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 break;
 
             case Step.NAMESPACE:
-                var n = {};
+                var nodes = {};
+
                 if (xpc.contextNode.nodeType == NodeTypes.ELEMENT_NODE) {
-                    n["xml"] = XPath.XML_NAMESPACE_URI;
-                    n["xmlns"] = XPath.XMLNS_NAMESPACE_URI;
+                    // BUG: This only collects the namespaces on the current node, but seemingly
+                    //      it should collect all those in scope
+                    nodes["xml"] = new XPathNamespace("xml", null, XPath.XML_NAMESPACE_URI, xpc.contextNode);
+
                     for (var m = xpc.contextNode; m != null && m.nodeType == NodeTypes.ELEMENT_NODE; m = m.parentNode) {
                         for (var k = 0; k < m.attributes.length; k++) {
                             var attr = m.attributes.item(k);
-                            var nm = String(attr.name);
-                            if (nm == "xmlns") {
-                                if (n[""] == undefined) {
-                                    n[""] = attr.value;
-                                }
-                            } else if (nm.length > 6 && nm.substring(0, 6) == "xmlns:") {
-                                var pre = nm.substring(6, nm.length);
-                                if (n[pre] == undefined) {
-                                    n[pre] = attr.value;
-                                }
+
+                            var pre = getPrefixForNamespaceNode(attr);
+
+                            if (pre != null && nodes[pre] == undefined) {
+                                nodes[pre] = new XPathNamespace(pre, attr, attr.value, xpc.contextNode);
                             }
                         }
                     }
-                    for (var pre in n) {
-                        var nsn = new XPathNamespace(pre, n[pre], xpc.contextNode);
-                        if (step.nodeTest.matches(nsn, xpc)) {
-                            newNodes.push(nsn);
+
+                    for (var pre in nodes) {
+                        var node = nodes[pre];
+
+                        if (step.nodeTest.matches(node, xpc)) {
+                            newNodes.push(node);
                         }
                     }
                 }
@@ -2069,10 +2151,11 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     };
 
     function applyStepWithPredicates(step, xpc, node) {
-        return PathExpr.applyPredicates(
+        return applyPredicates(
             step.predicates,
             xpc,
-            PathExpr.applyStep(step, xpc, node)
+            PathExpr.applyStep(step, xpc, node),
+            includes(REVERSE_AXES, step.axis)
         );
     }
 
@@ -2109,7 +2192,12 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         }
 
         return {
-            nodes: PathExpr.applyPredicates(this.filterPredicates || [], xpc, ns.toUnsortedArray())
+            nodes: applyPredicates(
+                this.filterPredicates || [],
+                xpc,
+                ns.toUnsortedArray(),
+                false // reverse
+            )
         };
     };
 
@@ -2124,7 +2212,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     };
 
     PathExpr.prototype.evaluate = function (c) {
-        var xpc = assign(new XPathContext(), c);
+        var xpc = c.clone();
 
         var filterResult = this.applyFilter(c, xpc);
 
@@ -2289,6 +2377,14 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         [Step.SELF, 'self']
     ]);
 
+    var REVERSE_AXES = [
+        Step.ANCESTOR,
+        Step.ANCESTORORSELF,
+        Step.PARENT,
+        Step.PRECEDING,
+        Step.PRECEDINGSIBLING
+    ];
+
     // NodeTest //////////////////////////////////////////////////////////////////
 
     NodeTest.prototype = new Object();
@@ -2396,7 +2492,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                     [
                         NodeTypes.ELEMENT_NODE,
                         NodeTypes.ATTRIBUTE_NODE,
-                        XPathNamespace.XPATH_NAMESPACE_NODE,
+                        NodeTypes.NAMESPACE_NODE,
                     ]
                 )(n) &&
                     NodeTest.nameSpaceMatches(this.prefix, xpc, n) &&
@@ -2435,7 +2531,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         [
             NodeTypes.ELEMENT_NODE,
             NodeTypes.ATTRIBUTE_NODE,
-            XPathNamespace.XPATH_NAMESPACE_NODE,
+            NodeTypes.NAMESPACE_NODE,
         ],
         '*'
     );
@@ -2458,8 +2554,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         NodeTest.NODE,
         [
             NodeTypes.ELEMENT_NODE,
-            NodeTypes.ATTRIBUTE_NODE, 
-            NodeTypes.TEXT_NODE, 
+            NodeTypes.ATTRIBUTE_NODE,
+            NodeTypes.TEXT_NODE,
             NodeTypes.CDATA_SECTION_NODE,
             NodeTypes.PROCESSING_INSTRUCTION_NODE,
             NodeTypes.COMMENT_NODE,
@@ -2683,7 +2779,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         this.num = typeof n === "string" ? this.parse(n) : Number(n);
     };
 
-    XNumber.prototype.numberFormat = /^\s*-?[0-9]*\.?[0-9]+\s*$/;
+    // Factored so the integer and fractional forms no longer overlap: the old
+    // /[0-9]*\.?[0-9]+/ could split a digit run at any point, backtracking in
+    // O(n^2) on a long run followed by a non-digit. Same accepted language.
+    XNumber.prototype.numberFormat = /^\s*-?(?:[0-9]+|[0-9]*\.[0-9]+)\s*$/;
 
     XNumber.prototype.parse = function (s) {
         // XPath representation of numbers is more restrictive than what Number() or parseFloat() allow
@@ -3099,8 +3198,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             n2Par = n2.parentNode || n2.ownerElement;
         }
 
-        var n1isAttr = Utilities.isAttribute(n1);
-        var n2isAttr = Utilities.isAttribute(n2);
+        var n1isAttr = isAttributeLike(n1);
+        var n2isAttr = isAttributeLike(n2);
 
         if (n1isAttr && !n2isAttr) {
             return -1;
@@ -3109,15 +3208,35 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             return 1;
         }
 
+        // xml namespace node comes before others. namespace nodes before non-namespace nodes
+        if (n1.isXPathNamespace) {
+            if (n1.nodeValue === XPath.XML_NAMESPACE_URI) {
+                return -1;
+            }
+
+            if (!n2.isXPathNamespace) {
+                return -1;
+            }
+
+            if (n2.nodeValue === XPath.XML_NAMESPACE_URI) {
+                return 1;
+            }
+        } else if (n2.isXPathNamespace) {
+            return 1;
+        }
+
         if (n1Par) {
-            var cn = n1isAttr ? n1Par.attributes : n1Par.childNodes,
-                len = cn.length;
+            var cn = n1isAttr ? n1Par.attributes : n1Par.childNodes;
+            var len = cn.length;
+            var n1Compare = n1.baseNode || n1;
+            var n2Compare = n2.baseNode || n2;
+
             for (var i = 0; i < len; i += 1) {
                 var n = cn[i];
-                if (n === n1) {
+                if (n === n1Compare) {
                     return -1;
                 }
-                if (n === n2) {
+                if (n === n2Compare) {
                     return 1;
                 }
             }
@@ -3388,16 +3507,17 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     XPathNamespace.prototype.constructor = XPathNamespace;
     XPathNamespace.superclass = Object.prototype;
 
-    function XPathNamespace(pre, ns, p) {
+    function XPathNamespace(pre, node, uri, p) {
         this.isXPathNamespace = true;
+        this.baseNode = node;
         this.ownerDocument = p.ownerDocument;
-        this.nodeName = "#namespace";
+        this.nodeName = pre;
         this.prefix = pre;
         this.localName = pre;
-        this.namespaceURI = ns;
-        this.nodeValue = ns;
+        this.namespaceURI = null;
+        this.nodeValue = uri;
         this.ownerElement = p;
-        this.nodeType = XPathNamespace.XPATH_NAMESPACE_NODE;
+        this.nodeType = NodeTypes.NAMESPACE_NODE;
     }
 
     XPathNamespace.prototype.toString = function () {
@@ -3416,7 +3536,33 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         this.functionResolver = fr != null ? fr : new FunctionResolver();
     }
 
+    XPathContext.prototype.clone = function () {
+        var copy = new XPathContext(this.variableResolver, this.namespaceResolver, this.functionResolver);
+        copy.expressionContextNode =  this.expressionContextNode;
+        copy.virtualRoot = this.virtualRoot;
+        copy.caseInsensitive = this.caseInsensitive;
+        copy.contextNode = this.contextNode;
+        copy.contextSize = this.contextSize;
+        copy.contextPosition = this.contextPosition;
+        copy.isHtml = this.isHtml;
+        copy.allowAnyNamespaceForNoPrefix = this.allowAnyNamespaceForNoPrefix;
+        return copy
+    }
+
+    var extendDeprecationWarned = false;
+
+    /**
+     * @deprecated Kept for code that calls it on an XPathContext; the library
+     * itself uses clone(). Will be removed in a future version.
+     */
     XPathContext.prototype.extend = function (newProps) {
+        if (!extendDeprecationWarned) {
+            extendDeprecationWarned = true;
+            if (typeof console !== 'undefined' && console.warn) {
+                console.warn('xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.');
+            }
+        }
+
         return assign(new XPathContext(), this, newProps);
     };
 
@@ -3619,6 +3765,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     Functions.namespaceURI = function () {
         var c = arguments[0];
         var n;
+
         if (arguments.length == 1) {
             n = c.contextNode;
         } else if (arguments.length == 2) {
@@ -3626,10 +3773,11 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         } else {
             throw new Error("Function namespace-uri expects (node-set?)");
         }
+
         if (n == null) {
             return new XString("");
         }
-        return new XString(n.namespaceURI);
+        return new XString(n.namespaceURI || '');
     };
 
     Functions.name = function () {
@@ -3912,8 +4060,13 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
 
     var Utilities = new Object();
 
-    Utilities.isAttribute = function (val) {
-        return val && (val.nodeType === NodeTypes.ATTRIBUTE_NODE || val.ownerElement);
+    // Returns true if the node is an attribute node or namespace node
+    var isAttributeLike = function (val) {
+        return val && (
+            val.nodeType === NodeTypes.ATTRIBUTE_NODE ||
+            val.ownerElement ||
+            val.isXPathNamespace
+        );
     }
 
     Utilities.splitQName = function (qn) {
@@ -4423,6 +4576,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         this.context.caseInsensitive = XPathExpression.detectHtmlDom(n);
 
         var result = this.xpath.evaluate(this.context);
+
         return new XPathResult(result, t);
     }
 
@@ -4745,6 +4899,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 context.functionResolver = makeFunctionResolver(options.functions);
                 context.variableResolver = makeVariableResolver(options.variables);
                 context.expressionContextNode = options.node;
+                context.expressionContextPosition = options.position;
+                context.expressionContextSize = options.size;
                 copyIfPresent('allowAnyNamespaceForNoPrefix', context, options);
                 copyIfPresent('isHtml', context, options);
             } else {
@@ -4833,21 +4989,21 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             DivOperation: DivOperation,
             ModOperation: ModOperation,
             UnaryMinusOperation: UnaryMinusOperation,
-          
+
             FunctionCall: FunctionCall,
             VariableReference: VariableReference,
-          
+
             XPathContext: XPathContext,
-          
+
             XNodeSet: XNodeSet,
             XBoolean: XBoolean,
             XString: XString,
             XNumber: XNumber,
-          
+
             NamespaceResolver: NamespaceResolver,
             FunctionResolver: FunctionResolver,
             VariableResolver: VariableResolver,
-          
+
             Utilities: Utilities,
         }
     );
@@ -4897,15 +5053,6 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
 
     exports.select1 = function (e, doc) {
         return exports.select(e, doc, true);
-    };
-
-    var isNodeLike = function (value) {
-        return value 
-            && typeof value.nodeType === "number" 
-            && Number.isInteger(value.nodeType)
-            && value.nodeType >= 1
-            && value.nodeType <= 11
-            && typeof value.nodeName === "string";
     };
 
     var isArrayOfNodes = function (value) {

@@ -16,8 +16,8 @@ Custom XPath functions are implemented as JavaScript functions taking one or mor
 The first argument passed in is a context object containing a number of properties relating to the execution context, 
 the most important being `contextNode`, the context in which the function is being evaluated.
 
-The remaining arguments are the arguments passed into the XPath function, as instances of the `XPathResult` interface.
-Please see [the documentation on that interface](XPathResult.md) for details.
+The remaining arguments are the arguments passed into the XPath function, as instances of the `XPathEvaluationResult` interface.
+Please see [the documentation on that interface](XPathEvaluationResult.md) for details.
 
 As the return value, you can return a string, number, boolean, single node, or array of nodes.
 
