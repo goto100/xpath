@@ -94,11 +94,15 @@ npm, so the older they are, the less detail they have.
 
 ## 0.0.27 (2017-12-04)
 
-- Added the `isHtml` option for parsed expressions (#27).
+- Added the `isHtml` option for parsed expressions (#27). It also turns on
+  `allowAnyNamespaceForNoPrefix`.
+- License changed from CC-BY-SA-2.0 to MIT (#76).
 
 ## 0.0.26 (2017-11-25)
 
-- Added the `allowAnyNamespaceForNoPrefix` option (#27).
+- Added the `allowAnyNamespaceForNoPrefix` option for parsed expressions
+  (#27).
+- Documentation fixes.
 
 ## 0.0.25 (2017-11-23)
 
@@ -118,6 +122,8 @@ npm, so the older they are, the less detail they have.
 - Documentation for parsed expressions, `XPathEvaluator`, `XPathResult`
   (now `XPathEvaluationResult`) and the function and namespace resolvers;
   `xpath.parse()` added to the API documentation.
+- The license in `package.json` is given as `CC-BY-SA-2.0` (was
+  "Creative Commons").
 
 ## 0.0.23 (2016-04-09)
 
@@ -153,6 +159,10 @@ npm, so the older they are, the less detail they have.
 - Unterminated string literals are detected.
 - `XPathException` behaves like an `Error`; `string()` with no arguments and
   `string()` on document fragments fixed.
+- Fixed string values in several cases, and `name()` / `local-name()` for
+  processing instructions.
+- `Utilities` is no longer created as a global variable.
+- The license in `package.json` changed from MIT to "Creative Commons".
 - README fixes (#8, #9).
 
 ## 0.0.9 (2015-01-06)
