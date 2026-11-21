@@ -28,6 +28,28 @@ const nsSingle: xpath.SelectSingleReturnType = selectNs('//x:a', doc, true);
 // @ts-expect-error namespace URIs are strings
 xpath.useNamespaces({ x: 1 });
 
+// evaluate() and XPathResult
+const evaluated: xpath.XPathResult = xpath.evaluate('string(//a)', doc, null, xpath.XPathResult.STRING_TYPE, null);
+const evaluatedString: string = evaluated.stringValue;
+const evaluatedType: number = evaluated.resultType;
+const singleNode: Node | null = evaluated.singleNodeValue;
+const nextNode: Node | undefined = evaluated.iterateNext();
+const snapshotNode: Node | undefined = evaluated.snapshotItem(0);
+const snapshotLength: number = evaluated.snapshotLength;
+const reused: xpath.XPathResult = xpath.evaluate('//a', doc, nsResolver, xpath.XPathResult.ANY_TYPE, evaluated);
+const stringType: 2 = xpath.XPathResult.STRING_TYPE;
+const firstOrderedType: 9 = xpath.XPathResult.FIRST_ORDERED_NODE_TYPE;
+declare const unknownValue: unknown;
+if (unknownValue instanceof xpath.XPathResult) {
+    const narrowedResult: xpath.XPathResult = unknownValue;
+}
+// @ts-expect-error results come from evaluate(); the class isn't constructed directly
+new xpath.XPathResult();
+// @ts-expect-error the type constants are static, not on results
+evaluated.STRING_TYPE;
+// @ts-expect-error iterateNext() is a method of results, not of the class
+xpath.XPathResult.iterateNext();
+
 // Type guards
 const selected = xpath.select('//a', doc);
 if (xpath.isArrayOfNodes(selected)) {
