@@ -24,6 +24,25 @@ npm, so the older they are, the less detail they have.
   with `XPathEvaluationResult`. The documentation page moved from
   `docs/XPathResult.md` to `docs/XPathEvaluationResult.md`.
 
+### Changed
+
+- Faster evaluation: contexts are copied with the new
+  `XPathContext.prototype.clone()`, which copies a fixed set of fields,
+  instead of copying every property (#146). On the benchmark in #146
+  (100,000 selections), evaluation took about a third to a half as long.
+- Behavior change: custom properties set on an `XPathContext` are no longer
+  copied to the contexts that location paths and predicates are evaluated
+  with. Only the library's own context fields are (#146).
+
+### Deprecated
+
+- `XPathContext.prototype.extend()`. The library no longer uses it. It still
+  works as before, logs a deprecation warning the first time it's called,
+  and will be removed in a future version (#146). To copy an `XPathContext`,
+  use `clone()` and set any extra properties on the copy. Unlike `extend()`,
+  `clone()` copies only the library's own context fields, not custom
+  properties.
+
 ### Fixed
 
 - Parsing number literals no longer backtracks quadratically on long runs of
@@ -69,7 +88,7 @@ npm, so the older they are, the less detail they have.
 
 ## 0.0.32 (2020-10-20)
 
-- `NodeTest` objects expose `.type` again (restoring earlier behaviour).
+- `NodeTest` objects expose `.type` again (restoring earlier behavior).
 
 ## 0.0.31 (2020-10-19)
 
@@ -151,7 +170,7 @@ npm, so the older they are, the less detail they have.
 
 - Expressions can be parsed once and evaluated many times (`xpath.parse()`),
   with support for custom functions and variables.
-- The library's types are exposed, so parsed expressions can be analysed.
+- The library's types are exposed, so parsed expressions can be analyzed.
 - Performance improvements for node ordering and node sets
   (`Node.compareDocumentPosition()` when available).
 - Fixed the `preceding::` axis in document fragments, and names of DOM

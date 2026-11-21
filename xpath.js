@@ -1847,7 +1847,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             return nodes;
         }
 
-        var ctx = c.extend({});
+        var ctx = c.clone();
 
         return reduce(
             function (inNodes, pred) {
@@ -2212,7 +2212,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     };
 
     PathExpr.prototype.evaluate = function (c) {
-        var xpc = assign(new XPathContext(), c);
+        var xpc = c.clone();
 
         var filterResult = this.applyFilter(c, xpc);
 
@@ -3536,7 +3536,33 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         this.functionResolver = fr != null ? fr : new FunctionResolver();
     }
 
+    XPathContext.prototype.clone = function () {
+        var copy = new XPathContext(this.variableResolver, this.namespaceResolver, this.functionResolver);
+        copy.expressionContextNode =  this.expressionContextNode;
+        copy.virtualRoot = this.virtualRoot;
+        copy.caseInsensitive = this.caseInsensitive;
+        copy.contextNode = this.contextNode;
+        copy.contextSize = this.contextSize;
+        copy.contextPosition = this.contextPosition;
+        copy.isHtml = this.isHtml;
+        copy.allowAnyNamespaceForNoPrefix = this.allowAnyNamespaceForNoPrefix;
+        return copy
+    }
+
+    var extendDeprecationWarned = false;
+
+    /**
+     * @deprecated Kept for code that calls it on an XPathContext; the library
+     * itself uses clone(). Will be removed in a future version.
+     */
     XPathContext.prototype.extend = function (newProps) {
+        if (!extendDeprecationWarned) {
+            extendDeprecationWarned = true;
+            if (typeof console !== 'undefined' && console.warn) {
+                console.warn('xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.');
+            }
+        }
+
         return assign(new XPathContext(), this, newProps);
     };
 
