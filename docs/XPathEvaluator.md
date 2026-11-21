@@ -12,6 +12,12 @@ Each of these methods takes an optional `options` object, which can contain any 
 
 - `node` - the context node for evaluating the expression
 
+- `position` - the context position, returned by `position()` (a positive integer, default `1`)
+
+- `size` - the context size, returned by `last()` (a positive integer no smaller than `position`, default `1`)
+
+`position` and `size` let a host such as an XSLT processor evaluate an expression for each node in a node list. They do not affect positions inside predicates, which are always based on the node set being filtered.
+
 Example usage: 
 
 ```js

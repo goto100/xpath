@@ -255,6 +255,75 @@ describe('xpath', () => {
             assert.strictEqual(xpath.select("count(preceding::chapter)", chapter), 4);
         });
 
+        it('should exclude descendants from following::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/t/following::node()', '<r><t>x</t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/t/following::*', '<r><t><y/></t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/following::*', '<r><t/><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/a/t/following::*', xml), ['b', 'c', 'd', 't', 'e']);
+            assert.deepEqual(names('/r/a/t/@q/following::*', xml), ['k', 'b', 'c', 'd', 't', 'e']);
+            assert.strictEqual(xpath.select('count(//*/following::*)', parseXml(xml)), 5);
+        });
+
+        it('should exclude ancestors from preceding::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/a/t/preceding::*', '<r><a><t/><b/></a><c><d/></c><t/><e/></r>'), []);
+            assert.deepEqual(names('/r/t/preceding::node()', '<r><t>x</t><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/c/d/preceding::*', xml), ['a', 't', 'k', 'b']);
+            assert.deepEqual(names('/r/e/preceding::*', xml), ['a', 't', 'k', 'b', 'c', 'd', 't']);
+            assert.deepEqual(names('/r/c/d/preceding::*[1]', xml), ['b']);
+            assert.deepEqual(names('/r/c/@x/preceding::*', '<r><a><b/></a><c x="1"><d/></c></r>'), ['a', 'b']);
+        });
+
+        it('should exclude ancestors from preceding:: within a virtual root', () => {
+            const doc = parseXml('<r><a><b/></a><v><c/><w><t/></w></v></r>');
+            const [v] = xpath.select('/r/v', doc);
+            const [t] = xpath.select('//t', doc);
+            const evaluate = (expr, virtualRoot) => {
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = t;
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse(expr).evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            // The walk starts at the virtual root, below some of the context node's ancestors.
+            assert.deepEqual(evaluate('preceding::*', v), ['c']);
+            assert.deepEqual(evaluate('preceding::*', undefined), ['a', 'b', 'c']);
+        });
+
+        it('should limit following:: from an attribute of the virtual root to its descendants', () => {
+            const evaluate = (xml, virtualRootPath) => {
+                const doc = parseXml(xml);
+                const [virtualRoot] = xpath.select(virtualRootPath, doc);
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = virtualRoot.getAttributeNode('a');
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse('following::*').evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            assert.deepEqual(evaluate('<r><v a="1"><c><d/></c><e/></v><z/></r>', '/r/v'), ['c', 'd', 'e']);
+            assert.deepEqual(evaluate('<r><v a="1"/><z/></r>', '/r/v'), []);
+        });
+
+        it('should exclude every ancestor from preceding:: in a deeply nested document', () => {
+            // Built with the DOM API: parsing this depth from text needs a larger stack.
+            const doc = parseXml('<r><before/></r>');
+            let node = doc.documentElement;
+            for (let i = 0; i < 5000; i += 1) {
+                node = node.appendChild(doc.createElement('e'));
+            }
+            const leaf = node.appendChild(doc.createElement('leaf'));
+
+            assert.deepEqual(xpath.select('preceding::*', leaf).map(n => n.nodeName), ['before']);
+            assert.strictEqual(xpath.select('count(ancestor::*)', leaf), 5001);
+        });
+
         it('should allow getting sorted and unsorted arrays from nodesets', () => {
             const doc = parseXml('<book><character>Harry</character><character>Ron</character><character>Hermione</character></book>');
             const path = xpath.parse("/*/*[3] | /*/*[2] | /*/*[1]");
@@ -524,10 +593,6 @@ describe('xpath', () => {
             assert.equal(first3Nodes.length, 6);
 
             assert.equal(first3Nodes[5].textContent, '３章');
-
-            const allButFirst = xpath.parse('/*/book[1]/chapter[1]/following::chapter').select({ node: doc });
-
-            assert.equal(allButFirst.length, 7);
         });
 
         it('should respect reverse axes', () => {
@@ -632,6 +697,13 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select('number("45.8g")')), 'number("45.8g")');
             assert.ok(Number.isNaN(xpath.select('number("2e9")')), 'number("2e9")');
             assert.ok(Number.isNaN(xpath.select('number("+33")')), 'number("+33")');
+        });
+
+        it('should reject a long invalid numeric string in linear time', () => {
+            // Regression guard for O(n^2) backtracking in numberFormat: before the
+            // fix this blocked for seconds and would exceed the test timeout.
+            var longInvalid = new Array(100001).join('1') + 'x';
+            assert.ok(Number.isNaN(xpath.select('number("' + longInvalid + '")')), 'long invalid number is NaN');
         });
 
         it('should convert numbers to strings correctly', () => {
@@ -751,6 +823,40 @@ describe('xpath', () => {
             assert.strictEqual('title', single.localName);
             assert.strictEqual('Harry Potter', single.firstChild.data);
             assert.strictEqual('<title>Harry Potter</title>', single.toString());
+        });
+
+        it('should default context position and size to 1', () => {
+            var doc = parseXml('<book />');
+
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(), 1);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber(), 1);
+            assert.strictEqual(xpath.parse('position()').evaluateNumber({ node: doc }), 1);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber({ node: doc }), 1);
+        });
+
+        it('should support context position and size', () => {
+            var doc = parseXml('<book><chapter>One</chapter><chapter>Two</chapter><chapter>Three</chapter></book>');
+            var chapters = xpath.select('/book/chapter', doc);
+            var options = function (i) {
+                return { node: chapters[i], position: i + 1, size: chapters.length };
+            };
+
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(options(1)), 2);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber(options(1)), 3);
+            assert.strictEqual(xpath.parse('position() = last()').evaluateBoolean(options(1)), false);
+            assert.strictEqual(xpath.parse('position() = last()').evaluateBoolean(options(2)), true);
+            assert.strictEqual(xpath.parse('concat(., ":", position(), "/", last())').evaluateString(options(2)), 'Three:3/3');
+        });
+
+        it('should not apply context position and size inside predicates or steps', () => {
+            var doc = parseXml('<book><chapter>One</chapter><chapter>Two</chapter><chapter>Three</chapter></book>');
+            var options = { node: doc.documentElement, position: 3, size: 5 };
+
+            assert.strictEqual(xpath.parse('chapter[1]').select1(options).textContent, 'One');
+            assert.strictEqual(xpath.parse('chapter[last()]').select1(options).textContent, 'Three');
+            assert.strictEqual(xpath.parse('count(chapter[position() < 3])').evaluateNumber(options), 2);
+            assert.strictEqual(xpath.parse('(chapter)[position() = 2]').select1(options).textContent, 'Two');
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(options), 3);
         });
 
         it('should support select()', () => {
@@ -1303,6 +1409,38 @@ describe('xpath', () => {
 
             assert.strictEqual(xpath.select1('local-name(/book/characters)', doc), 'characters');
         });
+
+        it('should keep the deprecated XPathContext.prototype.extend(), warning only on the first call', () => {
+            var original = new xpath.XPathContext();
+            original.contextNode = parseXml('<a />');
+            original.caseInsensitive = true;
+            original.custom = 'kept';
+
+            var warnings = [];
+            var originalWarn = console.warn;
+            console.warn = (message) => warnings.push(message);
+
+            try {
+                var extended = original.extend({ caseInsensitive: false, extra: 42 });
+                var extendedAgain = original.extend({});
+
+                assert.ok(extended instanceof xpath.XPathContext, 'returns an XPathContext');
+                assert.notStrictEqual(extended, original, 'returns a new context');
+                assert.strictEqual(extended.contextNode, original.contextNode, 'copies existing properties');
+                assert.strictEqual(extended.namespaceResolver, original.namespaceResolver, 'copies the resolvers');
+                assert.strictEqual(extended.custom, 'kept', 'copies custom properties');
+                assert.strictEqual(extended.caseInsensitive, false, 'newProps override copied properties');
+                assert.strictEqual(extended.extra, 42, 'adds new properties');
+                assert.strictEqual(original.caseInsensitive, true, 'leaves the original unchanged');
+                assert.strictEqual(extendedAgain.caseInsensitive, true);
+
+                assert.deepEqual(warnings, [
+                    'xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.',
+                ]);
+            } finally {
+                console.warn = originalWarn;
+            }
+        });
     });
 
     describe('error handling', () => {
@@ -1326,6 +1464,26 @@ describe('xpath', () => {
                 assert.throws(() => xpath.parse('/*').select({ node }), {
                     message: 'Context node does not appear to be a valid DOM node.',
                 });
+            }
+        });
+
+        it('should reject invalid context position and size', () => {
+            var doc = parseXml('<book />');
+            var invalid = [
+                { position: 0 },
+                { position: 2 },
+                { position: 1.5, size: 2 },
+                { position: '1', size: 2 },
+                { position: 1, size: 0 },
+                { position: 3, size: 2 },
+                { position: NaN, size: 2 },
+                { size: -1 },
+            ];
+
+            for (let opts of invalid) {
+                assert.throws(() => xpath.parse('position()').evaluateNumber(Object.assign({ node: doc }, opts)), {
+                    message: 'Context position and size must be positive integers, with position no greater than size.',
+                }, JSON.stringify(opts));
             }
         });
 
