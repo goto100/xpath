@@ -1,6 +1,7 @@
+const { allChildEls } = require('func-xml');
 const xpath = require('./xpath.js');
 const dom = require('@xmldom/xmldom').DOMParser;
-const assert = require('assert');
+const { strict: assert } = require('assert');
 
 var xhtmlNs = 'http://www.w3.org/1999/xhtml';
 
@@ -254,6 +255,75 @@ describe('xpath', () => {
             assert.strictEqual(xpath.select("count(preceding::chapter)", chapter), 4);
         });
 
+        it('should exclude descendants from following::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/t/following::node()', '<r><t>x</t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/t/following::*', '<r><t><y/></t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/following::*', '<r><t/><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/a/t/following::*', xml), ['b', 'c', 'd', 't', 'e']);
+            assert.deepEqual(names('/r/a/t/@q/following::*', xml), ['k', 'b', 'c', 'd', 't', 'e']);
+            assert.strictEqual(xpath.select('count(//*/following::*)', parseXml(xml)), 5);
+        });
+
+        it('should exclude ancestors from preceding::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/a/t/preceding::*', '<r><a><t/><b/></a><c><d/></c><t/><e/></r>'), []);
+            assert.deepEqual(names('/r/t/preceding::node()', '<r><t>x</t><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/c/d/preceding::*', xml), ['a', 't', 'k', 'b']);
+            assert.deepEqual(names('/r/e/preceding::*', xml), ['a', 't', 'k', 'b', 'c', 'd', 't']);
+            assert.deepEqual(names('/r/c/d/preceding::*[1]', xml), ['b']);
+            assert.deepEqual(names('/r/c/@x/preceding::*', '<r><a><b/></a><c x="1"><d/></c></r>'), ['a', 'b']);
+        });
+
+        it('should exclude ancestors from preceding:: within a virtual root', () => {
+            const doc = parseXml('<r><a><b/></a><v><c/><w><t/></w></v></r>');
+            const [v] = xpath.select('/r/v', doc);
+            const [t] = xpath.select('//t', doc);
+            const evaluate = (expr, virtualRoot) => {
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = t;
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse(expr).evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            // The walk starts at the virtual root, below some of the context node's ancestors.
+            assert.deepEqual(evaluate('preceding::*', v), ['c']);
+            assert.deepEqual(evaluate('preceding::*', undefined), ['a', 'b', 'c']);
+        });
+
+        it('should limit following:: from an attribute of the virtual root to its descendants', () => {
+            const evaluate = (xml, virtualRootPath) => {
+                const doc = parseXml(xml);
+                const [virtualRoot] = xpath.select(virtualRootPath, doc);
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = virtualRoot.getAttributeNode('a');
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse('following::*').evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            assert.deepEqual(evaluate('<r><v a="1"><c><d/></c><e/></v><z/></r>', '/r/v'), ['c', 'd', 'e']);
+            assert.deepEqual(evaluate('<r><v a="1"/><z/></r>', '/r/v'), []);
+        });
+
+        it('should exclude every ancestor from preceding:: in a deeply nested document', () => {
+            // Built with the DOM API: parsing this depth from text needs a larger stack.
+            const doc = parseXml('<r><before/></r>');
+            let node = doc.documentElement;
+            for (let i = 0; i < 5000; i += 1) {
+                node = node.appendChild(doc.createElement('e'));
+            }
+            const leaf = node.appendChild(doc.createElement('leaf'));
+
+            assert.deepEqual(xpath.select('preceding::*', leaf).map(n => n.nodeName), ['before']);
+            assert.strictEqual(xpath.select('count(ancestor::*)', leaf), 5001);
+        });
+
         it('should allow getting sorted and unsorted arrays from nodesets', () => {
             const doc = parseXml('<book><character>Harry</character><character>Ron</character><character>Hermione</character></book>');
             const path = xpath.parse("/*/*[3] | /*/*[2] | /*/*[1]");
@@ -356,7 +426,17 @@ describe('xpath', () => {
         });
 
         it('should correctly evaluate context position', () => {
-            var doc = parseXml("<books><book><chapter>The boy who lived</chapter><chapter>The vanishing glass</chapter></book><book><chapter>The worst birthday</chapter><chapter>Dobby's warning</chapter><chapter>The burrow</chapter></book></books>");
+            var doc = parseXml(`<books>
+            <book>
+                <chapter>The boy who lived</chapter>
+                <chapter>The vanishing glass</chapter>
+            </book>
+            <book>
+                <chapter>The worst birthday</chapter>
+                <chapter>Dobby's warning</chapter>
+                <chapter>The burrow</chapter>
+            </book>
+        </books>`);
 
             var chapters = xpath.parse('/books/book/chapter[2]').select({ node: doc });
 
@@ -379,6 +459,189 @@ describe('xpath', () => {
 
             assert.strictEqual(1, lastChapter.length);
             assert.strictEqual("The burrow", lastChapter[0].textContent);
+
+            // #135 - issues with context position
+            const blockQuotes = parseXml(`<html>
+            <body>
+              <div>
+                <blockquote type="cite" class="blockquote">
+                  <div id="1234">
+                    <span style="font-family: 'Times New Roman', serif; font-size: 16px; line-height: normal;">
+                      This is a test!
+                    </span>
+                  </div>
+                </blockquote>
+              </div>
+              <div><br/></div>
+              <blockquote style="margin-Top: 0px; margin-Bottom: 0px; margin-Left: 0.5em">
+                <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                  <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                    <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                      <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                        <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                          <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                            <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                              <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                                <blockquote type="cite" class="front-blockquote" style="margin-top: 0px;">
+                                  <blockquote>
+                                    <span style="font-family: 'Times New Roman', serif; font-size: 16px; line-height: normal;">
+                                      This is also a test!
+                                    </span>
+                                  </blockquote>
+                                </blockquote>
+                              </blockquote>
+                            </blockquote>
+                          </blockquote>
+                        </blockquote>
+                      </blockquote>
+                    </blockquote>
+                  </blockquote>
+                </blockquote>
+              </blockquote>
+            </body>
+          </html>`);
+
+            const x = xpath
+                .parse(`(.//*[local-name(.)='blockquote'])[not(@class="gmail_quote") and not(ancestor::*[local-name() = 'blockquote'])][last()]`)
+                .select({ node: blockQuotes });
+
+            assert.strictEqual(1, x.length);
+
+            assert.strictEqual('This is also a test!', x[0].textContent.trim());
+        });
+
+        it('should select and sort namespace nodes properly', () => {
+            // #83 
+
+            const doc = parseXml('<book xmlns:b="http://book.com" xmlns="default-book" xmlns:a="http://author.com" xmlns:p="http://publisher"/>');
+
+            const namespaces = xpath.parse('/*/namespace::*').select({ node: doc });
+
+            assert.strictEqual(5, namespaces.length);
+
+            assert.equal('http://www.w3.org/XML/1998/namespace', namespaces[0].nodeValue);
+            assert.equal('xml', namespaces[0].localName);
+
+            assert.equal('http://book.com', namespaces[1].nodeValue);
+            assert.equal('b', namespaces[1].localName);
+
+            assert.equal('default-book', namespaces[2].nodeValue);
+            assert.equal('', namespaces[2].localName);
+
+            assert.equal('http://author.com', namespaces[3].nodeValue);
+            assert.equal('a', namespaces[3].localName);
+
+            assert.equal('http://publisher', namespaces[4].nodeValue);
+            assert.equal('p', namespaces[4].localName);
+        });
+
+        it('should allow using node positions', () => {
+            const doc = parseXml(`<books>
+                <book>
+                    <chapter>Chapter 1</chapter>
+                    <chapter>Chapter 2</chapter>
+                    <chapter>Chapter 3</chapter>
+                    <chapter>Chapter 4</chapter>
+                </book>
+                <book>
+                    <chapter>１章</chapter>
+                    <chapter>２章</chapter>
+                    <chapter>３章</chapter>
+                    <chapter>４章</chapter>
+                </book>
+            </books>`)
+
+            assert.equal(
+                xpath.parse('/*/book/chapter[1]').evaluateString({ node: doc }),
+                'Chapter 1',
+            );
+
+            assert.equal(
+                xpath.parse('/*/book/chapter[2]').evaluateString({ node: doc }),
+                'Chapter 2',
+            );
+
+            assert.equal(
+                xpath.parse('/*/book/chapter[3]').evaluateString({ node: doc }),
+                'Chapter 3',
+            );
+
+            assert.equal(
+                xpath.parse('/*/book[2]/chapter[1]').evaluateString({ node: doc }),
+                '１章',
+            );
+
+            assert.equal(
+                xpath.parse('/*/book/chapter[5]').evaluateString({ node: doc }),
+                '',
+            );
+
+            assert.equal(
+                xpath.parse('(/*/book/chapter)[5]').evaluateString({ node: doc }),
+                '１章',
+            );
+
+            const pos1Nodes = xpath.parse('/*/book/chapter[1]').select({ node: doc });
+
+            assert.equal(pos1Nodes.length, 2);
+
+            assert.equal(pos1Nodes[0].textContent, 'Chapter 1');
+            assert.equal(pos1Nodes[1].textContent, '１章');
+
+            const first3Nodes = xpath.parse('/*/book/chapter[position() <= 3]').select({ node: doc });
+
+            assert.equal(first3Nodes.length, 6);
+
+            assert.equal(first3Nodes[5].textContent, '３章');
+        });
+
+        it('should respect reverse axes', () => {
+            const doc = parseXml(`<book>
+                <chapter>Chapter 1</chapter>
+                <chapter>Chapter 2</chapter>
+                <chapter>Chapter 3</chapter>
+                <chapter>Chapter 4</chapter>
+            </book>`)
+
+            assert.equal(
+                xpath.parse('/*/chapter[last()]/preceding-sibling::*[1]').evaluateString({ node: doc }),
+                'Chapter 3',
+            );
+
+            assert.equal(
+                xpath.parse('/*/chapter[last()]/preceding-sibling::*[2]').evaluateString({ node: doc }),
+                'Chapter 2',
+            );
+
+            assert.equal(
+                xpath.parse('/*/chapter[last()]/preceding-sibling::*[3]').evaluateString({ node: doc }),
+                'Chapter 1',
+            );
+
+            assert.equal(
+                xpath.parse('/*/chapter[last()]/preceding-sibling::*[4]').evaluateString({ node: doc }),
+                '',
+            );
+
+            assert.equal(
+                xpath.parse('/*/chapter[last()]/preceding-sibling::*[last()]').evaluateString({ node: doc }),
+                'Chapter 1',
+            );
+
+            assert.equal(
+                xpath.parse('/*/chapter[last()]/preceding::chapter[last()]').evaluateString({ node: doc }),
+                'Chapter 1',
+            );
+
+            assert.equal(
+                xpath.parse('/*/chapter[last()]/preceding::*[position() = 1]').evaluateString({ node: doc }),
+                'Chapter 3',
+            );
+
+            assert.equal(
+                xpath.parse('/*/chapter[last()]/preceding::*[. != "Chapter 3"][1]').evaluateString({ node: doc }),
+                'Chapter 2',
+            );
         });
     });
 
@@ -436,6 +699,13 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select('number("+33")')), 'number("+33")');
         });
 
+        it('should reject a long invalid numeric string in linear time', () => {
+            // Regression guard for O(n^2) backtracking in numberFormat: before the
+            // fix this blocked for seconds and would exceed the test timeout.
+            var longInvalid = new Array(100001).join('1') + 'x';
+            assert.ok(Number.isNaN(xpath.select('number("' + longInvalid + '")')), 'long invalid number is NaN');
+        });
+
         it('should convert numbers to strings correctly', () => {
             assert.strictEqual('0.0000000000000000000000005250000000000001', xpath.parse('0.525 div 1000000 div 1000000 div 1000000 div 1000000').evaluateString());
             assert.strictEqual('525000000000000000000000', xpath.parse('0.525 * 1000000 * 1000000 * 1000000 * 1000000').evaluateString());
@@ -485,6 +755,44 @@ describe('xpath', () => {
 
             assert.strictEqual(str, 'e');
         });
+
+        it('should get string values from namespace nodes', () => {
+            const doc = parseXml('<book xmlns:author="http://author" xmlns="https://book" />');
+
+            assert.equal(
+                xpath.parse('string(/*/namespace::author)').evaluateString({ node: doc }),
+                'http://author'
+            );
+            assert.equal(
+                xpath.parse('name(/*/namespace::author)').evaluateString({ node: doc }),
+                'author'
+            );
+            assert.equal(
+                xpath.parse('local-name(/*/namespace::author)').evaluateString({ node: doc }),
+                'author'
+            );
+            assert.equal(
+                xpath.parse('namespace-uri(/*/namespace::author)').evaluateString({ node: doc }),
+                ''
+            );
+
+            assert.equal(
+                xpath.parse('string(/*/namespace::*[not(local-name())])').evaluateString({ node: doc }),
+                'https://book'
+            );
+            assert.equal(
+                xpath.parse('name(/*/namespace::*[not(local-name())])').evaluateString({ node: doc }),
+                ''
+            );
+            assert.equal(
+                xpath.parse('local-name(/*/namespace::*[not(local-name())])').evaluateString({ node: doc }),
+                ''
+            );
+            assert.equal(
+                xpath.parse('namespace-uri(/*/namespace::*[not(local-name())])').evaluateString({ node: doc }),
+                ''
+            );
+        });
     });
 
     describe('parsed expressions', () => {
@@ -515,6 +823,40 @@ describe('xpath', () => {
             assert.strictEqual('title', single.localName);
             assert.strictEqual('Harry Potter', single.firstChild.data);
             assert.strictEqual('<title>Harry Potter</title>', single.toString());
+        });
+
+        it('should default context position and size to 1', () => {
+            var doc = parseXml('<book />');
+
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(), 1);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber(), 1);
+            assert.strictEqual(xpath.parse('position()').evaluateNumber({ node: doc }), 1);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber({ node: doc }), 1);
+        });
+
+        it('should support context position and size', () => {
+            var doc = parseXml('<book><chapter>One</chapter><chapter>Two</chapter><chapter>Three</chapter></book>');
+            var chapters = xpath.select('/book/chapter', doc);
+            var options = function (i) {
+                return { node: chapters[i], position: i + 1, size: chapters.length };
+            };
+
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(options(1)), 2);
+            assert.strictEqual(xpath.parse('last()').evaluateNumber(options(1)), 3);
+            assert.strictEqual(xpath.parse('position() = last()').evaluateBoolean(options(1)), false);
+            assert.strictEqual(xpath.parse('position() = last()').evaluateBoolean(options(2)), true);
+            assert.strictEqual(xpath.parse('concat(., ":", position(), "/", last())').evaluateString(options(2)), 'Three:3/3');
+        });
+
+        it('should not apply context position and size inside predicates or steps', () => {
+            var doc = parseXml('<book><chapter>One</chapter><chapter>Two</chapter><chapter>Three</chapter></book>');
+            var options = { node: doc.documentElement, position: 3, size: 5 };
+
+            assert.strictEqual(xpath.parse('chapter[1]').select1(options).textContent, 'One');
+            assert.strictEqual(xpath.parse('chapter[last()]').select1(options).textContent, 'Three');
+            assert.strictEqual(xpath.parse('count(chapter[position() < 3])').evaluateNumber(options), 2);
+            assert.strictEqual(xpath.parse('(chapter)[position() = 2]').select1(options).textContent, 'Two');
+            assert.strictEqual(xpath.parse('position()').evaluateNumber(options), 3);
         });
 
         it('should support select()', () => {
@@ -965,7 +1307,11 @@ describe('xpath', () => {
 
             assert.strictEqual('Heyy', translated);
 
-            var characters = parseXml('<characters><character>Harry</character><character>Ron</character><character>Hermione</character></characters>');
+            var characters = parseXml(`<characters>
+            <character>Harry</character>
+            <character>Ron</character>
+            <character>Hermione</character>
+        </characters>`);
 
             var firstTwo = xpath.parse('/characters/character[position() <= 2]').select({ node: characters });
 
@@ -973,10 +1319,23 @@ describe('xpath', () => {
             assert.strictEqual('Harry', firstTwo[0].textContent);
             assert.strictEqual('Ron', firstTwo[1].textContent);
 
-            var last = xpath.parse('/characters/character[last()]').select({ node: characters });
+            const last = xpath.parse('/characters/character[last()]').select({ node: characters });
 
             assert.strictEqual(1, last.length);
             assert.strictEqual('Hermione', last[0].textContent);
+
+            const lastPrefiltered = xpath.parse('/characters/character[. != "Hermione"][last()]').select({ node: characters });
+
+            assert.strictEqual(1, lastPrefiltered.length);
+            assert.strictEqual('Ron', lastPrefiltered[0].textContent);
+
+            const lastStrict = xpath.parse('/characters/character[last() = 3]').select({ node: characters, });
+
+            assert.equal(3, lastStrict.length);
+
+            const lastStrictMiss = xpath.parse('/characters/character[last() = 2]').select({ node: characters, });
+
+            assert.equal(0, lastStrictMiss.length);
         });
     });
 
@@ -1050,6 +1409,95 @@ describe('xpath', () => {
 
             assert.strictEqual(xpath.select1('local-name(/book/characters)', doc), 'characters');
         });
+
+        it('should keep the deprecated XPathContext.prototype.extend(), warning only on the first call', () => {
+            var original = new xpath.XPathContext();
+            original.contextNode = parseXml('<a />');
+            original.caseInsensitive = true;
+            original.custom = 'kept';
+
+            var warnings = [];
+            var originalWarn = console.warn;
+            console.warn = (message) => warnings.push(message);
+
+            try {
+                var extended = original.extend({ caseInsensitive: false, extra: 42 });
+                var extendedAgain = original.extend({});
+
+                assert.ok(extended instanceof xpath.XPathContext, 'returns an XPathContext');
+                assert.notStrictEqual(extended, original, 'returns a new context');
+                assert.strictEqual(extended.contextNode, original.contextNode, 'copies existing properties');
+                assert.strictEqual(extended.namespaceResolver, original.namespaceResolver, 'copies the resolvers');
+                assert.strictEqual(extended.custom, 'kept', 'copies custom properties');
+                assert.strictEqual(extended.caseInsensitive, false, 'newProps override copied properties');
+                assert.strictEqual(extended.extra, 42, 'adds new properties');
+                assert.strictEqual(original.caseInsensitive, true, 'leaves the original unchanged');
+                assert.strictEqual(extendedAgain.caseInsensitive, true);
+
+                assert.deepEqual(warnings, [
+                    'xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.',
+                ]);
+            } finally {
+                console.warn = originalWarn;
+            }
+        });
+    });
+
+    describe('error handling', () => {
+        it('should reject unspecified expression', () => {
+            for (let expr of [null, undefined, '']) {
+                assert.throws(() => xpath.parse(expr), {
+                    message: 'XPath expression unspecified.',
+                });
+            }
+        });
+
+        it('should reject non-string expression', () => {
+            for (let expr of [{}, []]) {
+                assert.throws(() => xpath.parse(expr), {
+                    message: 'XPath expression must be a string.',
+                });
+            }
+        });
+        it('should reject non-nodes', () => {
+            for (let node of ['<n />', 0, 45, true, false, [], {}]) {
+                assert.throws(() => xpath.parse('/*').select({ node }), {
+                    message: 'Context node does not appear to be a valid DOM node.',
+                });
+            }
+        });
+
+        it('should reject invalid context position and size', () => {
+            var doc = parseXml('<book />');
+            var invalid = [
+                { position: 0 },
+                { position: 2 },
+                { position: 1.5, size: 2 },
+                { position: '1', size: 2 },
+                { position: 1, size: 0 },
+                { position: 3, size: 2 },
+                { position: NaN, size: 2 },
+                { size: -1 },
+            ];
+
+            for (let opts of invalid) {
+                assert.throws(() => xpath.parse('position()').evaluateNumber(Object.assign({ node: doc }, opts)), {
+                    message: 'Context position and size must be positive integers, with position no greater than size.',
+                }, JSON.stringify(opts));
+            }
+        });
+
+        it('should handle unspecified nodes', () => {
+            assert.throws(
+                () => xpath.parse('my:field').select(), {
+                message: 'Context node not found when evaluating XPath step: child::my:field',
+            });
+
+            assert.throws(
+                () => xpath.parse('/*').select(), {
+                message: 'Context node not found when determining document root.',
+            });
+        })
     });
 
     describe('Node type tests', () => {
