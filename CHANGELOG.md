@@ -24,6 +24,25 @@ npm, so the older they are, the less detail they have.
   with `XPathEvaluationResult`. The documentation page moved from
   `docs/XPathResult.md` to `docs/XPathEvaluationResult.md`.
 
+- The return types of `select()` and `select1()` now match what they
+  return at runtime (#123):
+  - `select()` (`SelectReturnType`) returns an array of nodes or a string,
+    number or boolean. It never returns a single node or `null`.
+  - `select1()` and `select(..., true)` (`SelectSingleReturnType`) return a
+    node, a string, number or boolean, or `undefined` when nothing matched.
+    They never return `null`.
+
+  Code that assigns `select1()`'s result to a type without `undefined` (such
+  as `SelectedValue`) no longer compiles. A check for `null` still compiles
+  but never matched at runtime: check for `undefined` instead. The new
+  `ScalarValue` type is the string, number or boolean case. `SelectedValue`
+  is deprecated but still exported, with its previous meaning.
+
+  The type guards (`isNodeLike()`, `isArrayOfNodes()`, `isElement()` and
+  the other `is…()` functions) now accept any value, including `null`,
+  `undefined` and nodes from DOM properties such as `parentNode`, as they
+  always have at runtime.
+
 ### Changed
 
 - Faster evaluation: contexts are copied with the new

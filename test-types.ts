@@ -10,9 +10,17 @@ declare const nsResolver: XPathNSResolver;
 const many: xpath.SelectReturnType = xpath.select('//a', doc);
 const manyExplicit: xpath.SelectReturnType = xpath.select('//a', doc, false);
 const single: xpath.SelectSingleReturnType = xpath.select('//a', doc, true);
-const first: xpath.SelectedValue = xpath.select1('//a', doc);
+const first: xpath.SelectSingleReturnType = xpath.select1('//a', doc);
+// select() gives nodes or a scalar: never a single node, never null
+const manyExact: Node[] | xpath.ScalarValue = xpath.select('//a', doc);
+// select1() gives a node, a scalar, or undefined when nothing matched: never null
+const firstExact: Node | xpath.ScalarValue | undefined = xpath.select1('//a', doc);
+// @ts-expect-error select1() can return undefined
+const firstDefined: Node | xpath.ScalarValue = xpath.select1('//a', doc);
 // @ts-expect-error a single result isn't an array
 const notAnArray: Node[] = xpath.select('//a', doc, true);
+// SelectedValue is deprecated but still exported
+const legacyValue: xpath.SelectedValue = null;
 // @ts-expect-error the expression is a string
 xpath.select(1, doc);
 
@@ -88,6 +96,20 @@ if (xpath.isDocumentTypeNode(value)) {
 if (xpath.isDocumentFragment(value)) {
     const fragment: DocumentFragment = value;
 }
+// The guards accept any value, including null, undefined and nodes from the DOM
+declare const anything: unknown;
+if (xpath.isElement(anything)) {
+    const fromUnknown: Element = anything;
+}
+if (xpath.isArrayOfNodes(anything)) {
+    const nodesFromUnknown: Node[] = anything;
+}
+declare const element: Element;
+if (xpath.isElement(element.parentNode)) {
+    const parentElement: Element = element.parentNode;
+}
+const nullIsNode: boolean = xpath.isNodeLike(null) || xpath.isNodeLike(undefined);
+const documentIsArray: boolean = xpath.isArrayOfNodes(doc);
 
 // parse() and XPathEvaluator
 const evaluator: xpath.XPathEvaluator = xpath.parse('count(//a)');
