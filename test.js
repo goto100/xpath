@@ -713,6 +713,19 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select1('/r/hex + 0', doc)), '/r/hex + 0');
         });
 
+        it('should accept a trailing decimal point in numbers (XPath 1.0 3.7)', () => {
+            var doc = parseXml('<r><n>42.</n><m>-1.</m></r>');
+
+            assert.strictEqual(xpath.select('number("42.")'), 42);
+            assert.strictEqual(xpath.select('number("-1.")'), -1);
+            assert.strictEqual(xpath.select1('number(/r/n)', doc), 42);
+            assert.strictEqual(xpath.select1('/r/n + 1', doc), 43);
+            assert.strictEqual(xpath.select1('sum(/r/n)', doc), 42);
+            assert.strictEqual(xpath.select1('number(/r/m)', doc), -1);
+            assert.ok(Number.isNaN(xpath.select('number(".")')), 'number(".")');
+            assert.ok(Number.isNaN(xpath.select('number("-.")')), 'number("-.")');
+        });
+
         it('should reject a long invalid numeric string in linear time', () => {
             // Regression guard for O(n^2) backtracking in numberFormat: before the
             // fix this blocked for seconds and would exceed the test timeout.
