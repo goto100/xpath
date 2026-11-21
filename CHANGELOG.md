@@ -85,7 +85,7 @@ npm, so the older they are, the less detail they have.
 
 ## 0.0.32 (2020-10-20)
 
-- `NodeTest` objects expose `.type` again (restoring earlier behaviour).
+- `NodeTest` objects expose `.type` again (restoring earlier behavior).
 
 ## 0.0.31 (2020-10-19)
 
@@ -167,7 +167,7 @@ npm, so the older they are, the less detail they have.
 
 - Expressions can be parsed once and evaluated many times (`xpath.parse()`),
   with support for custom functions and variables.
-- The library's types are exposed, so parsed expressions can be analysed.
+- The library's types are exposed, so parsed expressions can be analyzed.
 - Performance improvements for node ordering and node sets
   (`Node.compareDocumentPosition()` when available).
 - Fixed the `preceding::` axis in document fragments, and names of DOM
