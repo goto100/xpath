@@ -38,7 +38,10 @@ npm, so the older they are, the less detail they have.
 
 - `XPathContext.prototype.extend()`. The library no longer uses it. It still
   works as before, logs a deprecation warning the first time it's called,
-  and will be removed in a future version (#146).
+  and will be removed in a future version (#146). To copy an `XPathContext`,
+  use `clone()` and set any extra properties on the copy. Unlike `extend()`,
+  `clone()` copies only the library's own context fields, not custom
+  properties.
 
 ### Fixed
 

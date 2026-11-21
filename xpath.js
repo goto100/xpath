@@ -3559,7 +3559,7 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         if (!extendDeprecationWarned) {
             extendDeprecationWarned = true;
             if (typeof console !== 'undefined' && console.warn) {
-                console.warn('xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version.');
+                console.warn('xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.');
             }
         }
 

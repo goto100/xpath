@@ -1366,7 +1366,7 @@ describe('xpath', () => {
                 assert.strictEqual(extendedAgain.caseInsensitive, true);
 
                 assert.deepEqual(warnings, [
-                    'xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version.',
+                    'xpath: XPathContext.prototype.extend() is deprecated and will be removed in a future version. Use clone() to copy an XPathContext.',
                 ]);
             } finally {
                 console.warn = originalWarn;
