@@ -2779,7 +2779,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         this.num = typeof n === "string" ? this.parse(n) : Number(n);
     };
 
-    XNumber.prototype.numberFormat = /^\s*-?[0-9]*\.?[0-9]+\s*$/;
+    // Factored so the integer and fractional forms no longer overlap: the old
+    // /[0-9]*\.?[0-9]+/ could split a digit run at any point, backtracking in
+    // O(n^2) on a long run followed by a non-digit. Same accepted language.
+    XNumber.prototype.numberFormat = /^\s*-?(?:[0-9]+|[0-9]*\.[0-9]+)\s*$/;
 
     XNumber.prototype.parse = function (s) {
         // XPath representation of numbers is more restrictive than what Number() or parseFloat() allow

@@ -630,6 +630,13 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select('number("+33")')), 'number("+33")');
         });
 
+        it('should reject a long invalid numeric string in linear time', () => {
+            // Regression guard for O(n^2) backtracking in numberFormat: before the
+            // fix this blocked for seconds and would exceed the test timeout.
+            var longInvalid = new Array(100001).join('1') + 'x';
+            assert.ok(Number.isNaN(xpath.select('number("' + longInvalid + '")')), 'long invalid number is NaN');
+        });
+
         it('should convert numbers to strings correctly', () => {
             assert.strictEqual('0.0000000000000000000000005250000000000001', xpath.parse('0.525 div 1000000 div 1000000 div 1000000 div 1000000').evaluateString());
             assert.strictEqual('525000000000000000000000', xpath.parse('0.525 * 1000000 * 1000000 * 1000000 * 1000000').evaluateString());
