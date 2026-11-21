@@ -281,6 +281,35 @@ describe('xpath', () => {
             assert.deepEqual(names('/r/c/@x/preceding::*', '<r><a><b/></a><c x="1"><d/></c></r>'), ['a', 'b']);
         });
 
+        it('should exclude ancestors from preceding:: within a virtual root', () => {
+            const doc = parseXml('<r><a><b/></a><v><c/><w><t/></w></v></r>');
+            const [v] = xpath.select('/r/v', doc);
+            const [t] = xpath.select('//t', doc);
+            const evaluate = (expr, virtualRoot) => {
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = t;
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse(expr).evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            // The walk starts at the virtual root, below some of the context node's ancestors.
+            assert.deepEqual(evaluate('preceding::*', v), ['c']);
+            assert.deepEqual(evaluate('preceding::*', undefined), ['a', 'b', 'c']);
+        });
+
+        it('should exclude every ancestor from preceding:: in a deeply nested document', () => {
+            // Built with the DOM API: parsing this depth from text needs a larger stack.
+            const doc = parseXml('<r><before/></r>');
+            let node = doc.documentElement;
+            for (let i = 0; i < 5000; i += 1) {
+                node = node.appendChild(doc.createElement('e'));
+            }
+            const leaf = node.appendChild(doc.createElement('leaf'));
+
+            assert.deepEqual(xpath.select('preceding::*', leaf).map(n => n.nodeName), ['before']);
+            assert.strictEqual(xpath.select('count(ancestor::*)', leaf), 5001);
+        });
+
         it('should allow getting sorted and unsorted arrays from nodesets', () => {
             const doc = parseXml('<book><character>Harry</character><character>Ron</character><character>Hermione</character></book>');
             const path = xpath.parse("/*/*[3] | /*/*[2] | /*/*[1]");

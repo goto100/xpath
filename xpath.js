@@ -2125,6 +2125,14 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 for (var a = target.parentNode; a != null; a = a.parentNode) {
                     ancestors.push(a);
                 }
+                // The walk below meets the ancestors in document order (root first),
+                // so skip them with a pointer instead of searching the list each time.
+                var nextAncestor = ancestors.length - 1;
+                if (xpc.virtualRoot != null) {
+                    while (nextAncestor >= 0 && ancestors[nextAncestor] !== xpc.virtualRoot) {
+                        nextAncestor -= 1;
+                    }
+                }
                 var st;
                 if (xpc.virtualRoot != null) {
                     st = [xpc.virtualRoot];
@@ -2137,7 +2145,9 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                         if (m == target) {
                             break outer;
                         }
-                        if (ancestors.indexOf(m) === -1 && step.nodeTest.matches(m, xpc)) {
+                        if (nextAncestor >= 0 && m === ancestors[nextAncestor]) {
+                            nextAncestor -= 1;
+                        } else if (step.nodeTest.matches(m, xpc)) {
                             newNodes.unshift(m);
                         }
                         if (m.firstChild != null) {
