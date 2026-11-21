@@ -255,6 +255,75 @@ describe('xpath', () => {
             assert.strictEqual(xpath.select("count(preceding::chapter)", chapter), 4);
         });
 
+        it('should exclude descendants from following::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/t/following::node()', '<r><t>x</t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/t/following::*', '<r><t><y/></t><u/></r>'), ['u']);
+            assert.deepEqual(names('/r/following::*', '<r><t/><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/a/t/following::*', xml), ['b', 'c', 'd', 't', 'e']);
+            assert.deepEqual(names('/r/a/t/@q/following::*', xml), ['k', 'b', 'c', 'd', 't', 'e']);
+            assert.strictEqual(xpath.select('count(//*/following::*)', parseXml(xml)), 5);
+        });
+
+        it('should exclude ancestors from preceding::', () => {
+            const names = (expr, xml) => xpath.select(expr, parseXml(xml)).map(n => n.nodeName + (n.nodeValue ? ':' + n.nodeValue : ''));
+
+            assert.deepEqual(names('/r/a/t/preceding::*', '<r><a><t/><b/></a><c><d/></c><t/><e/></r>'), []);
+            assert.deepEqual(names('/r/t/preceding::node()', '<r><t>x</t><u/></r>'), []);
+
+            const xml = '<r><a><t q="1"><k/></t><b/></a><c><d/></c><t/><e/></r>';
+            assert.deepEqual(names('/r/c/d/preceding::*', xml), ['a', 't', 'k', 'b']);
+            assert.deepEqual(names('/r/e/preceding::*', xml), ['a', 't', 'k', 'b', 'c', 'd', 't']);
+            assert.deepEqual(names('/r/c/d/preceding::*[1]', xml), ['b']);
+            assert.deepEqual(names('/r/c/@x/preceding::*', '<r><a><b/></a><c x="1"><d/></c></r>'), ['a', 'b']);
+        });
+
+        it('should exclude ancestors from preceding:: within a virtual root', () => {
+            const doc = parseXml('<r><a><b/></a><v><c/><w><t/></w></v></r>');
+            const [v] = xpath.select('/r/v', doc);
+            const [t] = xpath.select('//t', doc);
+            const evaluate = (expr, virtualRoot) => {
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = t;
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse(expr).evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            // The walk starts at the virtual root, below some of the context node's ancestors.
+            assert.deepEqual(evaluate('preceding::*', v), ['c']);
+            assert.deepEqual(evaluate('preceding::*', undefined), ['a', 'b', 'c']);
+        });
+
+        it('should limit following:: from an attribute of the virtual root to its descendants', () => {
+            const evaluate = (xml, virtualRootPath) => {
+                const doc = parseXml(xml);
+                const [virtualRoot] = xpath.select(virtualRootPath, doc);
+                const context = new xpath.XPathContext();
+                context.expressionContextNode = virtualRoot.getAttributeNode('a');
+                context.virtualRoot = virtualRoot;
+                return new xpath.XPathParser().parse('following::*').evaluate(context).toArray().map(n => n.nodeName);
+            };
+
+            assert.deepEqual(evaluate('<r><v a="1"><c><d/></c><e/></v><z/></r>', '/r/v'), ['c', 'd', 'e']);
+            assert.deepEqual(evaluate('<r><v a="1"/><z/></r>', '/r/v'), []);
+        });
+
+        it('should exclude every ancestor from preceding:: in a deeply nested document', () => {
+            // Built with the DOM API: parsing this depth from text needs a larger stack.
+            const doc = parseXml('<r><before/></r>');
+            let node = doc.documentElement;
+            for (let i = 0; i < 5000; i += 1) {
+                node = node.appendChild(doc.createElement('e'));
+            }
+            const leaf = node.appendChild(doc.createElement('leaf'));
+
+            assert.deepEqual(xpath.select('preceding::*', leaf).map(n => n.nodeName), ['before']);
+            assert.strictEqual(xpath.select('count(ancestor::*)', leaf), 5001);
+        });
+
         it('should allow getting sorted and unsorted arrays from nodesets', () => {
             const doc = parseXml('<book><character>Harry</character><character>Ron</character><character>Hermione</character></book>');
             const path = xpath.parse("/*/*[3] | /*/*[2] | /*/*[1]");

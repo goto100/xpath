@@ -2022,28 +2022,55 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 if (xpc.contextNode === xpc.virtualRoot) {
                     break;
                 }
-                var st = [];
-                if (xpc.contextNode.firstChild != null) {
-                    st.unshift(xpc.contextNode.firstChild);
-                } else {
-                    st.unshift(xpc.contextNode.nextSibling);
+                // following:: is everything after the context node in document order,
+                // except its descendants. For an attribute or namespace node, that
+                // starts with its owner element's children.
+                //
+                // toVisit is a stack of places to resume the walk: each entry is a node
+                // to visit along with its following siblings and all their descendants.
+                // The walk below pops from the end, so the entries are added to the
+                // front (unshift) in the order they must be visited, nearest first.
+                var toVisit = [];
+                var start = xpc.contextNode;
+                if (start.nodeType == NodeTypes.ATTRIBUTE_NODE || start.nodeType == NodeTypes.NAMESPACE_NODE) {
+                    start = PathExpr.getOwnerElement(start);
+                    if (start == null) {
+                        break;
+                    }
+                    // The owner element's children come first: they follow its attributes.
+                    toVisit.unshift(start.firstChild);
                 }
-                for (var m = xpc.contextNode.parentNode; m != null && m.nodeType != NodeTypes.DOCUMENT_NODE && m !== xpc.virtualRoot; m = m.parentNode) {
-                    st.unshift(m.nextSibling);
+                // When start is the virtual root (the context node is one of its attributes
+                // or namespace nodes), its children are all that's in scope, and they're
+                // already on the stack.
+                if (start !== xpc.virtualRoot) {
+                    // Next come start's following siblings (with their descendants)...
+                    toVisit.unshift(start.nextSibling);
+                    // ...then each ancestor's following siblings, from the parent outward,
+                    // stopping at the document or the virtual root. Each one ends up below
+                    // the previous one on the stack, so it's visited after it.
+                    for (var ancestor = start.parentNode; ancestor != null && ancestor.nodeType != NodeTypes.DOCUMENT_NODE && ancestor !== xpc.virtualRoot; ancestor = ancestor.parentNode) {
+                        toVisit.unshift(ancestor.nextSibling);
+                    }
                 }
+                // Walk in document order: take the next entry, visit it and its
+                // following siblings, and before going down into a node's children,
+                // push its next sibling so the walk comes back to it afterwards.
+                // An entry can be null (no next sibling there); popping one ends that
+                // run at once, as does popping from an empty stack.
                 do {
-                    for (var m = st.pop(); m != null;) {
-                        if (step.nodeTest.matches(m, xpc)) {
-                            newNodes.push(m);
+                    for (var current = toVisit.pop(); current != null;) {
+                        if (step.nodeTest.matches(current, xpc)) {
+                            newNodes.push(current);
                         }
-                        if (m.firstChild != null) {
-                            st.push(m.nextSibling);
-                            m = m.firstChild;
+                        if (current.firstChild != null) {
+                            toVisit.push(current.nextSibling);
+                            current = current.firstChild;
                         } else {
-                            m = m.nextSibling;
+                            current = current.nextSibling;
                         }
                     }
-                } while (st.length > 0);
+                } while (toVisit.length > 0);
                 break;
 
             case Step.FOLLOWINGSIBLING:
@@ -2102,26 +2129,65 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                 break;
 
             case Step.PRECEDING:
-                var st;
+                // preceding:: excludes ancestors. For an attribute or namespace
+                // node, everything before its owner element precedes it.
+                var target = xpc.contextNode;
+                if (target.nodeType == NodeTypes.ATTRIBUTE_NODE || target.nodeType == NodeTypes.NAMESPACE_NODE) {
+                    target = PathExpr.getOwnerElement(target);
+                    if (target == null) {
+                        break;
+                    }
+                }
+                // The target's ancestors, in reverse document order: its parent first,
+                // the root last.
+                var ancestors = [];
+                for (var ancestor = target.parentNode; ancestor != null; ancestor = ancestor.parentNode) {
+                    ancestors.push(ancestor);
+                }
+                // The walk below visits the ancestors in document order (root first), so
+                // it meets them from the end of this list backwards. nextAncestorIndex is
+                // the index in ancestors of the next ancestor the walk will reach: it
+                // starts at the root (the last entry) and counts down as the walk passes
+                // each one, so ancestors are skipped without searching the list. With a
+                // virtual root, the walk starts there, so start at the virtual root's
+                // entry instead: the ancestors above it are never visited.
+                var nextAncestorIndex = ancestors.length - 1;
                 if (xpc.virtualRoot != null) {
-                    st = [xpc.virtualRoot];
+                    while (nextAncestorIndex >= 0 && ancestors[nextAncestorIndex] !== xpc.virtualRoot) {
+                        nextAncestorIndex -= 1;
+                    }
+                }
+                // toVisit is a stack of places to resume the walk, as in following::.
+                var toVisit;
+                if (xpc.virtualRoot != null) {
+                    toVisit = [xpc.virtualRoot];
                 } else {
                     // cannot rely on .ownerDocument because the node may be in a document fragment
-                    st = [findRoot(xpc.contextNode)];
+                    toVisit = [findRoot(target)];
                 }
-                outer: while (st.length > 0) {
-                    for (var m = st.pop(); m != null;) {
-                        if (m == xpc.contextNode) {
+                // Walk the tree in document order from the root, and stop on reaching the
+                // target (break outer). Everything the walk visits before that comes
+                // before the target in document order: the target's ancestors, which are
+                // skipped, and the preceding nodes. Each preceding node that matches is
+                // added to the front of newNodes, which leaves them in reverse document
+                // order (applyPredicates sorts a reverse axis's nodes that way itself).
+                // As in following::, before going down into a node's children the walk
+                // pushes its next sibling to come back to.
+                outer: while (toVisit.length > 0) {
+                    for (var current = toVisit.pop(); current != null;) {
+                        if (current == target) {
                             break outer;
                         }
-                        if (step.nodeTest.matches(m, xpc)) {
-                            newNodes.unshift(m);
+                        if (nextAncestorIndex >= 0 && current === ancestors[nextAncestorIndex]) {
+                            nextAncestorIndex -= 1;
+                        } else if (step.nodeTest.matches(current, xpc)) {
+                            newNodes.unshift(current);
                         }
-                        if (m.firstChild != null) {
-                            st.push(m.nextSibling);
-                            m = m.firstChild;
+                        if (current.firstChild != null) {
+                            toVisit.push(current.nextSibling);
+                            current = current.firstChild;
                         } else {
-                            m = m.nextSibling;
+                            current = current.nextSibling;
                         }
                     }
                 }

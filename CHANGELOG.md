@@ -48,6 +48,10 @@ npm, so the older they are, the less detail they have.
 - TypeScript: `xpath.evaluate()` is typed again (its typing was dropped in
   0.0.33, #116), and `xpath.XPathResult` is declared as a class with its
   result-type constants, such as `xpath.XPathResult.STRING_TYPE` (#121).
+- `following::` no longer includes the context node's descendants (and no
+  longer misses nodes that come after them), and `preceding::` no longer
+  includes its ancestors, as XPath 1.0 §2.2 specifies. Both also work for
+  attribute and namespace context nodes (#150; fix from #153 by bardrop).
 - Parsing number literals no longer backtracks quadratically on long runs of
   digits (#151).
 
