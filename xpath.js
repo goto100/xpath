@@ -122,7 +122,8 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     };
 
     var isNodeLike = function (value) {
-        return value
+        // !!value: return false, not the value itself, for null, undefined, 0, '' and NaN.
+        return !!value
             && isValidNodeType(value.nodeType)
             && typeof value.nodeName === "string";
     };

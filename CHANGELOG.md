@@ -41,7 +41,9 @@ npm, so the older they are, the less detail they have.
   The type guards (`isNodeLike()`, `isArrayOfNodes()`, `isElement()` and
   the other `is…()` functions) now accept any value, including `null`,
   `undefined` and nodes from DOM properties such as `parentNode`, as they
-  always have at runtime.
+  always have at runtime. They also now return `false` for `null`,
+  `undefined`, `0`, `''` and `NaN`, where `isNodeLike()` and the node-type
+  guards used to return the value itself.
 
 ### Changed
 
