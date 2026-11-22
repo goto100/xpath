@@ -5,8 +5,8 @@ export type ScalarValue = string | number | boolean;
 
 /** What `select()` returns: the selected nodes, or the expression's value if it isn't a node set. */
 export type SelectReturnType = Array<Node> | ScalarValue;
-/** What `select1()` and `select(..., true)` return: the first selected node (undefined if none), or the expression's value. */
-export type SelectSingleReturnType = ScalarValue | Node | undefined;
+/** What `select1()` and `select(..., true)` return: the first selected node (null if none), or the expression's value. */
+export type SelectSingleReturnType = ScalarValue | Node | null;
 
 /** @deprecated Use `SelectReturnType`, `SelectSingleReturnType` or `ScalarValue`. */
 export type SelectedValue = Node | string | number | boolean | null;
@@ -52,10 +52,10 @@ export declare class XPathResult {
     /** Set for the iterator types. */
     readonly invalidIteratorState: boolean;
 
-    /** For the iterator types: the next node, or undefined after the last one. */
-    iterateNext(): Node | undefined;
-    /** For the snapshot types: the node at `index`, or undefined when out of range. */
-    snapshotItem(index: number): Node | undefined;
+    /** For the iterator types: the next node, or null after the last one. */
+    iterateNext(): Node | null;
+    /** For the snapshot types: the node at `index`, or null when there is none. */
+    snapshotItem(index: number): Node | null;
 }
 
 /**
@@ -107,7 +107,7 @@ export interface XPathEvaluator {
     evaluateString(options?: XPathEvaluateOptions): string;
     evaluateNodeSet(options?: XPathEvaluateOptions): XPathNodeSet;
     select(options?: XPathEvaluateOptions): Node[];
-    select1(options?: XPathEvaluateOptions): Node | undefined;
+    select1(options?: XPathEvaluateOptions): Node | null;
 }
 
 export interface XPathEvaluateOptions {

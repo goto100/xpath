@@ -62,7 +62,7 @@ This is only valid for expressions that evaluate to a node set.
 
 `select1([options])`
 
-Evaluates the XPath expression and the first node in the resulting node set, in document order. Returns `undefined` if the resulting node set is empty. 
+Evaluates the XPath expression and the first node in the resulting node set, in document order. Returns `null` if the resulting node set is empty. 
 
 This is only valid for expressions that evaluate to a node set.
 
