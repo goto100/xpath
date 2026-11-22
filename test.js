@@ -735,6 +735,33 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select('number("+33")')), 'number("+33")');
         });
 
+        it('should convert node-sets to numbers using XPath number syntax', () => {
+            var doc = parseXml('<r><hex>0x10</hex><exp>1e3</exp><empty/><inf>Infinity</inf><ok> 42.5 </ok></r>');
+
+            assert.strictEqual(42.5, xpath.select1('number(/r/ok)', doc));
+            assert.strictEqual(43.5, xpath.select1('/r/ok + 1', doc));
+
+            // JS Number() would give 16, 1000, 0 and Infinity here
+            assert.ok(Number.isNaN(xpath.select1('number(/r/hex)', doc)), 'number(/r/hex)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/exp)', doc)), 'number(/r/exp)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/empty)', doc)), 'number(/r/empty)');
+            assert.ok(Number.isNaN(xpath.select1('number(/r/inf)', doc)), 'number(/r/inf)');
+            assert.ok(Number.isNaN(xpath.select1('/r/hex + 0', doc)), '/r/hex + 0');
+        });
+
+        it('should accept a trailing decimal point in numbers (XPath 1.0 3.7)', () => {
+            var doc = parseXml('<r><n>42.</n><m>-1.</m></r>');
+
+            assert.strictEqual(xpath.select('number("42.")'), 42);
+            assert.strictEqual(xpath.select('number("-1.")'), -1);
+            assert.strictEqual(xpath.select1('number(/r/n)', doc), 42);
+            assert.strictEqual(xpath.select1('/r/n + 1', doc), 43);
+            assert.strictEqual(xpath.select1('sum(/r/n)', doc), 42);
+            assert.strictEqual(xpath.select1('number(/r/m)', doc), -1);
+            assert.ok(Number.isNaN(xpath.select('number(".")')), 'number(".")');
+            assert.ok(Number.isNaN(xpath.select('number("-.")')), 'number("-.")');
+        });
+
         it('should reject a long invalid numeric string in linear time', () => {
             // Regression guard for O(n^2) backtracking in numberFormat: before the
             // fix this blocked for seconds and would exceed the test timeout.
@@ -1361,6 +1388,72 @@ describe('xpath', () => {
             assert.strictEqual(secretBooks.length, 1);
         });
 
+        it('should follow XPath 1.0 semantics in substring()', () => {
+            var sub = function (args) { return xpath.select('substring(' + args + ')'); };
+
+            // Examples taken directly from the XPath 1.0 spec, section 4.2. In XPath,
+            // 0 div 0 is NaN, 1 div 0 is Infinity and -1 div 0 is -Infinity.
+            assert.strictEqual(sub('"12345", 2, 3'), '234');
+            assert.strictEqual(sub('"12345", 2'), '2345');
+            assert.strictEqual(sub('"12345", 1.5, 2.6'), '234');
+            assert.strictEqual(sub('"12345", 0, 3'), '12');
+            assert.strictEqual(sub('"12345", 0 div 0, 3'), '');
+            assert.strictEqual(sub('"12345", 1, 0 div 0'), '');
+            assert.strictEqual(sub('"12345", -42, 1 div 0'), '12345');
+            assert.strictEqual(sub('"12345", -1 div 0, 1 div 0'), '');
+
+            // a negative length or NaN start must not be reinterpreted by JS substring()
+            assert.strictEqual(sub('"12345", 3, -1'), '');
+            assert.strictEqual(sub('"12345", 4, -2'), '');
+            assert.strictEqual(sub('"12345", 0 div 0'), '');
+        });
+
+        it('should support lang() on any node type, inheriting and ignoring case', () => {
+            var doc = parseXml('<d xml:lang="EN-us"><p a="1">text<!--c--></p><q xml:lang="fr"/></d>');
+
+            // inherited from the nearest ancestor with xml:lang
+            assert.strictEqual(xpath.select('//p[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//q[lang("en")]', doc).length, 0);
+            // the nearest xml:lang wins: q's own "fr", not d's "EN-us"
+            assert.strictEqual(xpath.select('//q[lang("fr")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//p[lang("fr")]', doc).length, 0);
+            // compared case-insensitively, with sub-language matching
+            assert.strictEqual(xpath.select('//p[lang("en-US")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//p[lang("us")]', doc).length, 0);
+            // non-element context nodes use their element's language instead of throwing
+            assert.strictEqual(xpath.select('//text()[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//comment()[lang("en")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//@a[lang("en")]', doc).length, 1);
+        });
+
+        it('should support id() with strings and node-sets', () => {
+            var doc = parseXml('<r><e id="a"/><e id="b"/><ref>b</ref><ref>a</ref></r>');
+
+            assert.strictEqual(xpath.select('id("a b")', doc).length, 2);
+            // a node-set argument uses each node's string-value, not its serialization
+            assert.strictEqual(xpath.select('id(/r/ref)', doc).length, 2);
+            // surrounding whitespace must not turn into a lookup of the empty ID
+            assert.strictEqual(xpath.select('id(" a ")', doc).length, 1);
+            assert.strictEqual(xpath.select('id("")', doc).length, 0);
+        });
+
+        it('should select each existing ID once with id()', () => {
+            var doc = parseXml('<r><e id="a"/><e id="b"/><e id="c"/><ref>b a</ref><ref>a</ref><ref>zzz</ref></r>');
+            var ids = function (expr) { return xpath.select(expr, doc).map(function (n) { return n.getAttribute('id'); }); };
+
+            // several IDs in a single string or node: all of them are selected
+            assert.deepEqual(ids('id("a b")'), ['a', 'b']);
+            assert.deepEqual(ids('id(/r/ref[1])'), ['a', 'b']);
+            // an ID that appears more than once is selected only once
+            assert.deepEqual(ids('id("a a")'), ['a']);
+            assert.deepEqual(ids('id("a b a")'), ['a', 'b']);
+            assert.deepEqual(ids('id(/r/ref)'), ['a', 'b']);
+            // an ID with no matching element selects nothing for that ID
+            assert.deepEqual(ids('id("zzz")'), []);
+            assert.deepEqual(ids('id("a zzz b")'), ['a', 'b']);
+            assert.deepEqual(ids('id(/r/ref[3])'), []);
+        });
+
         it('should support builtin functions', () => {
             var translated = xpath.parse('translate("hello", "lhho", "yHb")').evaluateString();
 
@@ -1668,6 +1761,26 @@ describe('xpath', () => {
                 assert.strictEqual(xpath.isAttribute(value), false, `isAttribute(${value})`);
                 assert.strictEqual(xpath.isArrayOfNodes(value), false, `isArrayOfNodes(${value})`);
             }
+        });
+
+        it('should not need Number.isInteger, which ES5 engines lack', () => {
+            const doc = parseXml('<r><a/></r>');
+            const [a] = xpath.select('/r/a', doc);
+            // Restore the original property exactly (it's non-enumerable), not by assignment.
+            const descriptor = Object.getOwnPropertyDescriptor(Number, 'isInteger');
+
+            delete Number.isInteger;
+            try {
+                assert.strictEqual(Number.isInteger, undefined);
+                assert.strictEqual(xpath.select1('/r/a', doc), a);
+                assert.strictEqual(xpath.select1('.', a), a);
+                assert.strictEqual(xpath.isNodeLike(a), true);
+                assert.strictEqual(xpath.isElement(a), true);
+            } finally {
+                Object.defineProperty(Number, 'isInteger', descriptor);
+            }
+            assert.strictEqual(typeof Number.isInteger, 'function');
+            assert.strictEqual(Object.getOwnPropertyDescriptor(Number, 'isInteger').enumerable, false);
         });
 
         it('should not identify an array as a Node', () => {
