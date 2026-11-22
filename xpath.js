@@ -120,8 +120,10 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     };
 
     var isValidNodeType = function (nodeType) {
+        // Math.floor rather than Number.isInteger, which is ES2015.
         return nodeType === NAMESPACE_NODE_NODETYPE ||
-            (Number.isInteger(nodeType)
+            (typeof nodeType === 'number'
+                && Math.floor(nodeType) === nodeType
                 && nodeType >= 1
                 && nodeType <= 11
             );

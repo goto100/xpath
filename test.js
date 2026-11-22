@@ -1647,6 +1647,24 @@ describe('xpath', () => {
             }
         });
 
+        it('should not need Number.isInteger, which ES5 engines lack', () => {
+            const doc = parseXml('<r><a/></r>');
+            const [a] = xpath.select('/r/a', doc);
+            const isInteger = Number.isInteger;
+
+            delete Number.isInteger;
+            try {
+                assert.strictEqual(Number.isInteger, undefined);
+                assert.strictEqual(xpath.select1('/r/a', doc), a);
+                assert.strictEqual(xpath.select1('.', a), a);
+                assert.strictEqual(xpath.isNodeLike(a), true);
+                assert.strictEqual(xpath.isElement(a), true);
+            } finally {
+                Number.isInteger = isInteger;
+            }
+            assert.strictEqual(typeof Number.isInteger, 'function');
+        });
+
         it('should not identify an array as a Node', () => {
             assert.ok(!xpath.isNodeLike([]));
         });
