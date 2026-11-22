@@ -1650,7 +1650,8 @@ describe('xpath', () => {
         it('should not need Number.isInteger, which ES5 engines lack', () => {
             const doc = parseXml('<r><a/></r>');
             const [a] = xpath.select('/r/a', doc);
-            const isInteger = Number.isInteger;
+            // Restore the original property exactly (it's non-enumerable), not by assignment.
+            const descriptor = Object.getOwnPropertyDescriptor(Number, 'isInteger');
 
             delete Number.isInteger;
             try {
@@ -1660,9 +1661,10 @@ describe('xpath', () => {
                 assert.strictEqual(xpath.isNodeLike(a), true);
                 assert.strictEqual(xpath.isElement(a), true);
             } finally {
-                Number.isInteger = isInteger;
+                Object.defineProperty(Number, 'isInteger', descriptor);
             }
             assert.strictEqual(typeof Number.isInteger, 'function');
+            assert.strictEqual(Object.getOwnPropertyDescriptor(Number, 'isInteger').enumerable, false);
         });
 
         it('should not identify an array as a Node', () => {
