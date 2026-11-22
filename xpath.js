@@ -3807,7 +3807,6 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             id = id.stringValue();
         }
         var ids = id.split(/[\x0d\x0a\x09\x20]+/);
-        var count = 0;
         var ns = new XNodeSet();
         var doc = c.contextNode.nodeType == NodeTypes.DOCUMENT_NODE
             ? c.contextNode
@@ -3825,7 +3824,6 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             }
             if (n != null) {
                 ns.add(n);
-                count++;
             }
         }
         return ns;
@@ -4101,9 +4099,12 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             if (n.nodeType != NodeTypes.ELEMENT_NODE) {
                 continue;
             }
-            // getAttributeNodeNS: some DOMs (xmldom 0.8) return '' rather than null from getAttributeNS
+            // Look up the attribute node, not its value: getAttributeNS returns "" when
+            // xml:lang is missing in some DOMs (xmldom 0.8), the same as for xml:lang="",
+            // so a missing attribute would stop the search at this element.
+            // getAttributeNodeNS returns null only when the attribute is missing.
             var a = n.getAttributeNodeNS(XPath.XML_NAMESPACE_URI, "lang");
-            if (a != null) {
+            if (a !== null) {
                 lang = String(a.value).toLowerCase();
                 break;
             }

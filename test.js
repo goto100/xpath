@@ -1368,7 +1368,8 @@ describe('xpath', () => {
         it('should follow XPath 1.0 semantics in substring()', () => {
             var sub = function (args) { return xpath.select('substring(' + args + ')'); };
 
-            // examples from the XPath 1.0 spec, section 4.2
+            // Examples taken directly from the XPath 1.0 spec, section 4.2. In XPath,
+            // 0 div 0 is NaN, 1 div 0 is Infinity and -1 div 0 is -Infinity.
             assert.strictEqual(sub('"12345", 2, 3'), '234');
             assert.strictEqual(sub('"12345", 2'), '2345');
             assert.strictEqual(sub('"12345", 1.5, 2.6'), '234');
@@ -1390,6 +1391,9 @@ describe('xpath', () => {
             // inherited from the nearest ancestor with xml:lang
             assert.strictEqual(xpath.select('//p[lang("en")]', doc).length, 1);
             assert.strictEqual(xpath.select('//q[lang("en")]', doc).length, 0);
+            // the nearest xml:lang wins: q's own "fr", not d's "EN-us"
+            assert.strictEqual(xpath.select('//q[lang("fr")]', doc).length, 1);
+            assert.strictEqual(xpath.select('//p[lang("fr")]', doc).length, 0);
             // compared case-insensitively, with sub-language matching
             assert.strictEqual(xpath.select('//p[lang("en-US")]', doc).length, 1);
             assert.strictEqual(xpath.select('//p[lang("us")]', doc).length, 0);
