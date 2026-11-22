@@ -1050,11 +1050,14 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                     number += c;
                     c = s.charAt(pos++);
                 }
+                // Number ::= Digits ('.' Digits?)? (XPath 1.0 3.7), taking the longest
+                // token, so the '.' belongs to the number even with no digits after it
+                // ("42."). The value keeps the '.' only when digits follow: "42." and
+                // "42" are the same number.
                 if (c == '.') {
-                    if (s.charAt(pos) >= '0' && s.charAt(pos) <= '9') {
-                        number += c;
-                        number += s.charAt(pos++);
-                        c = s.charAt(pos++);
+                    c = s.charAt(pos++);
+                    if (c >= '0' && c <= '9') {
+                        number += '.';
                         while (c >= '0' && c <= '9') {
                             number += c;
                             c = s.charAt(pos++);

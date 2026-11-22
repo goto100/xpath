@@ -97,6 +97,9 @@ npm, so the older they are, the less detail they have.
   attribute and namespace context nodes (#150; fix from #153 by bardrop).
 - Parsing number literals no longer backtracks quadratically on long runs of
   digits (#151).
+- A number literal with a trailing decimal point, such as `42.`, is now
+  accepted, as XPath 1.0 §3.7 allows. `42.`, `42. + 1` and `//a[1.]` used to
+  throw "XPath parse error".
 
 ### Other
 

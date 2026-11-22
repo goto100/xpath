@@ -742,6 +742,29 @@ describe('xpath', () => {
             assert.ok(Number.isNaN(xpath.select('number("' + longInvalid + '")')), 'long invalid number is NaN');
         });
 
+        it('should accept number literals with a trailing decimal point (XPath 1.0 3.7)', () => {
+            const doc = parseXml('<r><a>1</a><a>2</a></r>');
+
+            assert.strictEqual(xpath.select('42.'), 42);
+            assert.strictEqual(xpath.select('-42.'), -42);
+            assert.strictEqual(xpath.select('42. + 1'), 43);
+            assert.strictEqual(xpath.select('(42.)'), 42);
+            assert.strictEqual(xpath.select('1. div 2.'), 0.5);
+            assert.strictEqual(xpath.select('1.=1'), true);
+            assert.deepEqual(xpath.select('//a[1.]', doc).map(n => n.textContent), ['1']);
+            assert.deepEqual(xpath.select('//a[position()=2.]', doc).map(n => n.textContent), ['2']);
+
+            // unchanged
+            assert.strictEqual(xpath.select('42.5'), 42.5);
+            assert.strictEqual(xpath.select('.5'), 0.5);
+            assert.strictEqual(xpath.select('42'), 42);
+
+            // a second decimal point, or a dot after whitespace, is still an error
+            for (const expr of ['42..', '42.5.', '42 . 5', '42.e1']) {
+                assert.throws(() => xpath.select(expr, doc), /XPath parse error/, expr);
+            }
+        });
+
         it('should convert numbers to strings correctly', () => {
             assert.strictEqual('0.0000000000000000000000005250000000000001', xpath.parse('0.525 div 1000000 div 1000000 div 1000000 div 1000000').evaluateString());
             assert.strictEqual('525000000000000000000000', xpath.parse('0.525 * 1000000 * 1000000 * 1000000 * 1000000').evaluateString());
