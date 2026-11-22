@@ -120,11 +120,9 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     };
 
     var isValidNodeType = function (nodeType) {
+        // isPositiveInteger rather than Number.isInteger, which is ES2015.
         return nodeType === NAMESPACE_NODE_NODETYPE ||
-            (Number.isInteger(nodeType)
-                && nodeType >= 1
-                && nodeType <= 11
-            );
+            (isPositiveInteger(nodeType) && nodeType <= 11);
     };
 
     var isNodeLike = function (value) {

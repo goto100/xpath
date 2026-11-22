@@ -97,6 +97,9 @@ npm, so the older they are, the less detail they have.
   attribute and namespace context nodes (#150; fix from #153 by bardrop).
 - Parsing number literals no longer backtracks quadratically on long runs of
   digits (#151).
+- `xpath.js` no longer uses `Number.isInteger()`, which isn't available in
+  ES5 engines. It had been used since 0.0.33 to check node types, which runs
+  whenever an expression is evaluated against a node.
 
 ### Other
 
