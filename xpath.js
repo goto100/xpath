@@ -1048,11 +1048,14 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
                     number += c;
                     c = s.charAt(pos++);
                 }
+                // Number ::= Digits ('.' Digits?)? (XPath 1.0 3.7), taking the longest
+                // token, so the '.' belongs to the number even with no digits after it
+                // ("42."). The value keeps the '.' only when digits follow: "42." and
+                // "42" are the same number.
                 if (c == '.') {
-                    if (s.charAt(pos) >= '0' && s.charAt(pos) <= '9') {
-                        number += c;
-                        number += s.charAt(pos++);
-                        c = s.charAt(pos++);
+                    c = s.charAt(pos++);
+                    if (c >= '0' && c <= '9') {
+                        number += '.';
                         while (c >= '0' && c <= '9') {
                             number += c;
                             c = s.charAt(pos++);
@@ -2867,7 +2870,9 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
     // The two alternatives start differently (a digit, or '.'), so they don't overlap:
     // the old /[0-9]*\.?[0-9]+/ could split a digit run at any point, backtracking in
     // O(n^2) on a long run followed by a non-digit.
-    XNumber.prototype.numberFormat = /^\s*-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)\s*$/;
+    // The whitespace around it is XPath's S (3.7: space, tab, CR, LF), as in the lexer,
+    // normalize-space() and id(); JS \s would also accept a no-break space and others.
+    XNumber.prototype.numberFormat = /^[\x20\x09\x0D\x0A]*-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)[\x20\x09\x0D\x0A]*$/;
 
     XNumber.prototype.parse = function (s) {
         // XPath representation of numbers is more restrictive than what Number() or parseFloat() allow

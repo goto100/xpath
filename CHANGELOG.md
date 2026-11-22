@@ -105,6 +105,10 @@ npm, so the older they are, the less detail they have.
 - A trailing decimal point is accepted when converting to a number, as XPath
   1.0 §3.7 allows: `number("42.")` and a node containing `42.` give 42, not
   `NaN` (#152).
+- Converting a string to a number only accepts XPath whitespace (space, tab,
+  CR and LF) around the number, as XPath 1.0 §3.7 and §4.4 specify. Other
+  whitespace, such as a no-break space, an em space, a form feed or a vertical
+  tab, now gives `NaN`, where it used to be ignored (#161).
 - `substring()` follows XPath 1.0 §4.2 for its bounds: a `NaN` start, or a
   negative or `NaN` length, now gives an empty string (#152 by icguner).
 - `lang()` finds `xml:lang` on the context node or its nearest ancestor,
@@ -117,6 +121,9 @@ npm, so the older they are, the less detail they have.
 - `xpath.js` no longer uses `Number.isInteger()`, which isn't available in
   ES5 engines. It had been used since 0.0.33 to check node types, which runs
   whenever an expression is evaluated against a node.
+- A number literal with a trailing decimal point, such as `42.`, is now
+  accepted, as XPath 1.0 §3.7 allows. `42.`, `42. + 1` and `//a[1.]` used to
+  throw "XPath parse error".
 
 ### Other
 
