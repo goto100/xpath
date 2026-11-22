@@ -792,6 +792,26 @@ describe('xpath', () => {
             }
         });
 
+        it('should only accept XPath whitespace around a number when converting a string (XPath 1.0 3.7, 4.4)', () => {
+            // XPath whitespace is space, tab, CR and LF; JS \s also matches these others
+            const others = { 'no-break space': ' ', 'em space': ' ', 'form feed': '\f', 'vertical tab': '\v' };
+
+            assert.strictEqual(xpath.select('number(" \t\r\n5\n")'), 5);
+            assert.strictEqual(xpath.select('number("5 ")'), 5);
+            for (const [name, ch] of Object.entries(others)) {
+                assert.ok(Number.isNaN(xpath.select('number("' + ch + '5")')), 'leading ' + name);
+                assert.ok(Number.isNaN(xpath.select('number("5' + ch + '")')), 'trailing ' + name);
+
+                const doc = parseXml('<r><x>' + ch + '5</x></r>');
+                assert.ok(Number.isNaN(xpath.select1('number(/r/x)', doc)), 'node with ' + name);
+                assert.ok(Number.isNaN(xpath.select1('sum(/r/x)', doc)), 'sum() with ' + name);
+            }
+
+            const xmlSpace = parseXml('<r><x> \t\n5\n</x></r>');
+            assert.strictEqual(xpath.select1('number(/r/x)', xmlSpace), 5);
+            assert.strictEqual(xpath.select1('sum(/r/x)', xmlSpace), 5);
+        });
+
         it('should convert numbers to strings correctly', () => {
             assert.strictEqual('0.0000000000000000000000005250000000000001', xpath.parse('0.525 div 1000000 div 1000000 div 1000000 div 1000000').evaluateString());
             assert.strictEqual('525000000000000000000000', xpath.parse('0.525 * 1000000 * 1000000 * 1000000 * 1000000').evaluateString());
