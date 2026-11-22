@@ -2863,10 +2863,11 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         this.num = typeof n === "string" ? this.parse(n) : Number(n);
     };
 
-    // Factored so the integer and fractional forms no longer overlap: the old
-    // /[0-9]*\.?[0-9]+/ could split a digit run at any point, backtracking in
-    // O(n^2) on a long run followed by a non-digit. Same accepted language.
-    XNumber.prototype.numberFormat = /^\s*-?(?:[0-9]+|[0-9]*\.[0-9]+)\s*$/;
+    // XPath 1.0 3.7: Number ::= Digits ('.' Digits?)? | '.' Digits, so "42." is a number.
+    // The two alternatives start differently (a digit, or '.'), so they don't overlap:
+    // the old /[0-9]*\.?[0-9]+/ could split a digit run at any point, backtracking in
+    // O(n^2) on a long run followed by a non-digit.
+    XNumber.prototype.numberFormat = /^\s*-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)\s*$/;
 
     XNumber.prototype.parse = function (s) {
         // XPath representation of numbers is more restrictive than what Number() or parseFloat() allow
@@ -3401,12 +3402,13 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         return this.toString();
     };
 
+    // Pass a primitive string so XNumber applies XPath number syntax, not JS Number().
     XNodeSet.prototype.number = function () {
-        return new XNumber(this.string());
+        return new XNumber(this.toString());
     };
 
     XNodeSet.prototype.numberValue = function () {
-        return Number(this.string());
+        return this.number().numberValue();
     };
 
     XNodeSet.prototype.bool = function () {
@@ -3797,17 +3799,23 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
         }
         id = arguments[1].evaluate(c);
         if (Utilities.instance_of(id, XNodeSet)) {
-            id = id.toArray().join(" ");
+            // each node's string-value is an ID list (XPath 1.0 4.1); join() would use the node's toString()
+            id = id.toArray().map(function (node) {
+                return XNodeSet.prototype.stringForNode(node);
+            }).join(" ");
         } else {
             id = id.stringValue();
         }
         var ids = id.split(/[\x0d\x0a\x09\x20]+/);
-        var count = 0;
         var ns = new XNodeSet();
         var doc = c.contextNode.nodeType == NodeTypes.DOCUMENT_NODE
             ? c.contextNode
             : c.contextNode.ownerDocument;
         for (var i = 0; i < ids.length; i++) {
+            // leading/trailing whitespace yields empty tokens, and "" is never an ID
+            if (ids[i] === "") {
+                continue;
+            }
             var n;
             if (doc.getElementById) {
                 n = doc.getElementById(ids[i]);
@@ -3816,7 +3824,6 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             }
             if (n != null) {
                 ns.add(n);
-                count++;
             }
         }
         return ns;
@@ -3964,9 +3971,16 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             throw new Error("Function substring expects (string, number, number?)");
         }
         var s = arguments[1].evaluate(c).stringValue();
-        var n1 = Math.round(arguments[2].evaluate(c).numberValue()) - 1;
-        var n2 = arguments.length == 4 ? n1 + Math.round(arguments[3].evaluate(c).numberValue()) : undefined;
-        return new XString(s.substring(n1, n2));
+        var start = Math.round(arguments[2].evaluate(c).numberValue());
+        var end = arguments.length == 4 ? start + Math.round(arguments[3].evaluate(c).numberValue()) : Infinity;
+        // Characters at 1-based position p with start <= p < end (XPath 1.0 4.2). A NaN
+        // bound or non-positive length selects nothing; JS substring() would swap or zero them.
+        if (!(start < end)) {
+            return new XString("");
+        }
+        var from = Math.max(start, 1) - 1;
+        var to = Math.min(end, s.length + 1) - 1;
+        return new XString(from < to ? s.substring(from, to) : "");
     };
 
     Functions.stringLength = function () {
@@ -4076,17 +4090,30 @@ var xpath = (typeof exports === 'undefined') ? {} : exports;
             throw new Error("Function lang expects (string)");
         }
         var lang;
-        for (var n = c.contextNode; n != null && n.nodeType != NodeTypes.DOCUMENT_NODE; n = n.parentNode) {
-            var a = n.getAttributeNS(XPath.XML_NAMESPACE_URI, "lang");
-            if (a != null) {
-                lang = String(a);
+        var n = c.contextNode;
+        // attribute and namespace nodes have no parentNode; their language is their element's
+        if (n.nodeType == NodeTypes.ATTRIBUTE_NODE || n.nodeType == NodeTypes.NAMESPACE_NODE) {
+            n = PathExpr.getOwnerElement(n);
+        }
+        for (; n != null && n.nodeType != NodeTypes.DOCUMENT_NODE; n = n.parentNode) {
+            if (n.nodeType != NodeTypes.ELEMENT_NODE) {
+                continue;
+            }
+            // Look up the attribute node, not its value: getAttributeNS returns "" when
+            // xml:lang is missing in some DOMs (xmldom 0.8), the same as for xml:lang="",
+            // so a missing attribute would stop the search at this element.
+            // getAttributeNodeNS returns null only when the attribute is missing.
+            var a = n.getAttributeNodeNS(XPath.XML_NAMESPACE_URI, "lang");
+            if (a !== null) {
+                lang = String(a.value).toLowerCase();
                 break;
             }
         }
         if (lang == null) {
             return XBoolean.false_;
         }
-        var s = arguments[1].evaluate(c).stringValue();
+        // the comparison ignores case (XPath 1.0 4.3)
+        var s = arguments[1].evaluate(c).stringValue().toLowerCase();
         return new XBoolean(lang.substring(0, s.length) == s
             && (lang.length == s.length || lang.charAt(s.length) == '-'));
     };

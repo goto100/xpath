@@ -97,6 +97,23 @@ npm, so the older they are, the less detail they have.
   attribute and namespace context nodes (#150; fix from #153 by bardrop).
 - Parsing number literals no longer backtracks quadratically on long runs of
   digits (#151).
+- Converting a node-set to a number (with `number()` or in arithmetic) now
+  follows XPath number syntax, as converting a string already did. So a
+  node whose value is hexadecimal (`0x10`), uses an exponent (`1e3`), is
+  empty, or is `Infinity` gives `NaN`, where it used to give 16, 1000, 0 or
+  `Infinity` (#152 by icguner).
+- A trailing decimal point is accepted when converting to a number, as XPath
+  1.0 §3.7 allows: `number("42.")` and a node containing `42.` give 42, not
+  `NaN` (#152).
+- `substring()` follows XPath 1.0 §4.2 for its bounds: a `NaN` start, or a
+  negative or `NaN` length, now gives an empty string (#152 by icguner).
+- `lang()` finds `xml:lang` on the context node or its nearest ancestor,
+  compares case-insensitively, and works when the context node is a text,
+  comment, attribute or other non-element node, where it used to throw
+  (#152 by icguner).
+- `id()` uses each node's string-value when given a node-set, and no longer
+  looks up an empty ID when the argument has leading or trailing whitespace
+  (#152 by icguner).
 - `xpath.js` no longer uses `Number.isInteger()`, which isn't available in
   ES5 engines. It had been used since 0.0.33 to check node types, which runs
   whenever an expression is evaluated against a node.
