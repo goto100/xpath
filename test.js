@@ -1414,6 +1414,23 @@ describe('xpath', () => {
             assert.strictEqual(xpath.select('id("")', doc).length, 0);
         });
 
+        it('should select each existing ID once with id()', () => {
+            var doc = parseXml('<r><e id="a"/><e id="b"/><e id="c"/><ref>b a</ref><ref>a</ref><ref>zzz</ref></r>');
+            var ids = function (expr) { return xpath.select(expr, doc).map(function (n) { return n.getAttribute('id'); }); };
+
+            // several IDs in a single string or node: all of them are selected
+            assert.deepEqual(ids('id("a b")'), ['a', 'b']);
+            assert.deepEqual(ids('id(/r/ref[1])'), ['a', 'b']);
+            // an ID that appears more than once is selected only once
+            assert.deepEqual(ids('id("a a")'), ['a']);
+            assert.deepEqual(ids('id("a b a")'), ['a', 'b']);
+            assert.deepEqual(ids('id(/r/ref)'), ['a', 'b']);
+            // an ID with no matching element selects nothing for that ID
+            assert.deepEqual(ids('id("zzz")'), []);
+            assert.deepEqual(ids('id("a zzz b")'), ['a', 'b']);
+            assert.deepEqual(ids('id(/r/ref[3])'), []);
+        });
+
         it('should support builtin functions', () => {
             var translated = xpath.parse('translate("hello", "lhho", "yHb")').evaluateString();
 
