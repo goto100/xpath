@@ -4,7 +4,7 @@ All notable changes to this project are listed here. Dates are the npm
 publish dates. Earlier entries were reconstructed from the git history and
 npm, so the older they are, the less detail they have.
 
-## 0.1.0 (unreleased)
+## 0.1.0
 
 ### Breaking changes
 
